@@ -37,8 +37,8 @@ const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
 const relayerSigner = new ethers.Wallet(RELAYER_SIGNER_PRIVATE_KEY, provider);
 
 const ethAdapterRelayer = new EthersAdapter({
-  ethers,
-  signerOrProvider: relayerSigner
+    ethers,
+    signerOrProvider: relayerSigner
 });
 
 // Initialize factory
@@ -46,11 +46,11 @@ const safeFactory = await SafeFactory.create({ ethAdapter: ethAdapterRelayer })
 
 // Configure new Safe
 const safeAccountConfig: SafeAccountConfig = {
-  owners: [
-    USER_DEVICE_SIGNER_ADDRESS,
-    WAYMONT_SAFE_POLICY_GUARDIAN_SIGNER_ADDRESS
-  ],
-  threshold: 2
+    owners: [
+        USER_DEVICE_SIGNER_ADDRESS,
+        WAYMONT_SAFE_POLICY_GUARDIAN_SIGNER_ADDRESS
+    ],
+    threshold: 2
 };
 
 // safeSdkUserDevice is tied to the user device signer because the safeFactory was initialized with an adapter using the user device signer
@@ -76,7 +76,9 @@ Normally, when using the Safe TypeScript Protocol Kit to sign the second signatu
 
 #### Signing transactions with the policy guardian with `ethers.js`
 
-The following code is based on [the Safe Protocol Kit's documentation on generating the second signature for a transaction](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#confirm-the-transaction-second-confirmation).
+The following code is based on [the Safe Protocol Kit's documentation on getting pending transactions](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#get-pending-transactions) and [generating the second signature for a transaction](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#confirm-the-transaction-second-confirmation).
+
+This example code assumes the transaction has already been [created](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#create-a-transaction) and [proposed](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#propose-a-transaction) (as seen in the Protocol Kit docs).
 
 ```
 import SafeApiKit from '@safe-global/api-kit';
@@ -123,7 +125,7 @@ const receipt = await executeTxResponse.transactionResponse?.wait();
 console.log('Transaction executed at:', `https://goerli.etherscan.io/tx/${receipt.transactionHash}`);
 ```
 
-#### Preventing transactions from `Safe`s 
+#### Preventing transactions from `Safe`s to `WaymontSafePolicyGuardianSigner`, `WaymontSafeAdvancedSigner`s, and `WaymontSafeTimelockedBackupSignerModule`s
 
 **WARNING: Make sure to block transactions sent from `Safe`s to the deployed `WaymontSafePolicyGuardianSigner`, any of the deployed `WaymontSafeAdvancedSigner`s, or any of the deployed `WaymontSafeTimelockedBackupSignerModule`s.** Specifically, in the Waymont API's `createWalletSigningRequest` endpoint, before generating the policy guardian signature or doing anything else, validate that the destination address of the transaction is not any of the addresses of any of the deployed instances of any of these 3 contracts. (For example, if using the [Protocol Kit's example code to create transactions](https://docs.safe.global/learn/safe-core/safe-core-account-abstraction-sdk/protocol-kit#create-a-transaction), simply validate the `destination` variable.)
 
