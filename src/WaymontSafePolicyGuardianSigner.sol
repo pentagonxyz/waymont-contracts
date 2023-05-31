@@ -7,12 +7,6 @@ import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 /// @title WaymontPolicyGuardianSafeSigner
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
 contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
-    /// @notice Default policy guardian timelock (in seconds): 14 days.
-    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 86400 * 14;
-
-    /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
-    uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 * 60;
-
     /// @dev Typehash for `queueDisablePolicyGuardian`: `keccak256("QueueDisablePolicyGuardian(uint256 nonce)")`.
     bytes32 private constant QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0xd5fa5ce164fba34243c3b3b9c5346acc2eae6f31655b86516d465566d0ba53f7;
 
@@ -21,6 +15,12 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
 
     /// @dev Typehash for `disablePolicyGuardian`: `keccak256("DisablePolicyGuardian(uint256 nonce)")`.
     bytes32 private constant DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x1fa738809572ae202e6e8b28ae7d08f5972c3ae85e70f8bc386515bb47925975;
+
+    /// @notice Default policy guardian timelock (in seconds): 14 days.
+    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 86400 * 14;
+
+    /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
+    uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 * 60;
 
     /// @notice The primary policy guardian address.
     /// WARNING: If this variable is set to the zero address, wallets will not require signatures from either policy guardian address--so do NOT set this variable to the zero address unless you are sure you want to allow all transactions to bypass the policy guardian's firewall.

@@ -19,7 +19,7 @@ contract WaymontSafeTimelockedBackupSignerModule is EIP712DomainSeparator, Check
     bytes32 private constant EXEC_TRANSACTION_TYPEHASH = 0x60c023ac5b12ccfb6346228598efbab110f9f06cd102f7009adbf0dbb8b8c240;
 
     /// @dev Minimum signing timelock value (in seconds): 15 minutes.
-    uint256 private constant MIN_SIGNING_TIMELOCK = 15 * 60;
+    uint256 public constant MIN_SIGNING_TIMELOCK = 15 * 60;
 
     /// @notice Timelock for signers on this contract to submit signed transactions.
     uint256 public signingTimelock;
