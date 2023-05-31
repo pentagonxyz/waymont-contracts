@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.19;
 
+import "lib/safe-contracts/contracts/Safe.sol";
 import "lib/safe-contracts/contracts/CheckSignatures.sol";
 
 /// @title WaymontSafeAdvancedSigner

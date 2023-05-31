@@ -7,6 +7,8 @@ import "./WaymontSafeTimelockedRecoveryModule.sol";
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/ClonesUpgradeable.sol";
 
+import "lib/safe-contracts/contracts/Safe.sol";
+
 /// @title WaymontSafeFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
 contract WaymontSafeFactory {
