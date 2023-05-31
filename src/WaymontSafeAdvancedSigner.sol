@@ -31,7 +31,7 @@ contract WaymontSafeAdvancedSigner is CheckSignatures {
     /// MUST allow external calls.
     function isValidSignature(bytes calldata _data, bytes calldata _signature) external view returns (bytes4) {
         // Check signatures
-        checkSignatures(keccak256(data), _signature);
+        checkSignatures(keccak256(_data), _signature);
 
         // Return success by default
         return bytes4(0x20c13b0b);

@@ -4,9 +4,9 @@ pragma solidity 0.8.19;
 import "lib/safe-contracts/contracts/Safe.sol";
 import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 
-/// @title WaymontPolicyGuardianSafeSigner
+/// @title WaymontSafePolicyGuardianSigner
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
-contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
+contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @dev Typehash for `queueDisablePolicyGuardian`: `keccak256("QueueDisablePolicyGuardian(uint256 nonce)")`.
     bytes32 private constant QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0xd5fa5ce164fba34243c3b3b9c5346acc2eae6f31655b86516d465566d0ba53f7;
 
@@ -56,6 +56,9 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
     /// @notice For each safe, incremental nonce to prevent signature reuse on this contract.
     mapping(Safe => uint256) public nonces;
 
+    /// @dev Temporarily approved data hash.
+    bytes32 internal _tempApprovedDataHash;
+
     /// @notice Event emitted when the primary policy guardian is changed.
     event PolicyGuardianChanged(address _policyGuardian);
 
@@ -80,6 +83,9 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
 
     /// @notice Event emitted when executing the action of disabling the policy guardian on a `Safe`.
     event PolicyGuardianDisabledOnSafe(Safe indexed safe, bool withoutPolicyGuardian);
+
+    /// @notice Event emitted when the policy guardian timelock is changed for a `Safe`.
+    event PolicyGuardianTimelockChanged(Safe indexed safe, uint256 policyGuardianTimelock);
 
     /// @dev Constructor to initialize the contract by setting the policy guardian manager.
     constructor(address _policyGuardianManager) {
@@ -152,16 +158,16 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
         bytes memory data = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash);
 
         // Validate threshold
-        require(safe.threshold() > 1, "Cannot disable the policy guardian since the threshold on the Safe is one.");
+        require(safe.getThreshold() > 1, "Cannot disable the policy guardian since the threshold on the Safe is one.");
 
         // Mark data as signed so the call inside `safe.checkSignatures` to `this.isValidSignature` will succeed
-        tempApprovedDataHash = keccak256(data);
+        _tempApprovedDataHash = keccak256(data);
 
         // Check that `data` has been signed by `signatures` across all signers including this contract
-        safe.checkSignatures(keccak256(data), signatures);
+        safe.checkSignatures(keccak256(data), data, signatures);
 
         // Delete temporary storage for gas refund
-        delete tempApprovedDataHash;
+        delete _tempApprovedDataHash;
     }
 
     /// @notice Returns the policy guardian timelock for `safe`.
@@ -177,18 +183,20 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
     /// @param policyGuardianTimelock The desired timelock required to disable the policy guardian without the policy guardian's signature.
     function setPolicyGuardianTimelock(uint256 policyGuardianTimelock) external {
         require(policyGuardianTimelock >= MIN_POLICY_GUARDIAN_TIMELOCK, "Policy guardian timelock must be at least 15 minutes. Call disablePolicyGuardian to disable it.");
-        customPolicyGuardianTimelocks[Safe(msg.sender)] = policyGuardianTimelock;
-        policyGuardianDisabled[Safe(msg.sender)] = false;
-        disablePolicyGuardianQueueTimestamp = 0;
-        emit PolicyGuardianTimelockChanged(safe);
+        Safe safe = Safe(payable(msg.sender));
+        customPolicyGuardianTimelocks[safe] = policyGuardianTimelock;
+        policyGuardianDisabled[safe] = false;
+        disablePolicyGuardianQueueTimestamps[safe] = 0;
+        emit PolicyGuardianTimelockChanged(safe, policyGuardianTimelock);
     }
 
     /// @notice Disable validation of the policy guardian signature.
     /// WARNING: Do NOT call this function unless you are sure you want to allow all transactions from `Safe(msg.sender)` through the policy guardian's firewall.
     /// Off chain policy guardian logic: require that the user waits for the old timelock to pass after queueing it off-chain.
     function disablePolicyGuardian() external {
-        policyGuardianDisabled[Safe(msg.sender)] = true;
-        disablePolicyGuardianQueueTimestamp = 0;
+        Safe safe = Safe(payable(msg.sender));
+        policyGuardianDisabled[safe] = true;
+        disablePolicyGuardianQueueTimestamps[safe] = 0;
         emit PolicyGuardianDisabledOnSafe(safe, false);
     }
 
@@ -202,7 +210,7 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
         _validateSignatures(safe, QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH, signatures);
 
         // Mark down queue timestamp
-        disablePolicyGuardianQueueTimestamp[safe] = block.timestamp;
+        disablePolicyGuardianQueueTimestamps[safe] = block.timestamp;
 
         // Emit event
         emit DisablePolicyGuardianQueued(safe);
@@ -218,7 +226,7 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
         _validateSignatures(safe, UNQUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH, signatures);
 
         // Reset queue timestamp
-        disablePolicyGuardianQueueTimestamp[safe] = 0;
+        disablePolicyGuardianQueueTimestamps[safe] = 0;
 
         // Emit event
         emit DisablePolicyGuardianUnqueued(safe);
@@ -252,7 +260,7 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
     /// @dev MUST return the bytes4 magic value 0x20c13b0b when function passes.
     /// MUST NOT modify state (using STATICCALL for solc < 0.5, view modifier for solc > 0.5).
     /// MUST allow external calls.
-    function isValidSignature(bytes calldata _data, bytes calldata _signature) external view returns (bytes4) {
+    function isValidSignature(bytes calldata _data, bytes memory _signature) external view returns (bytes4) {
         // Require signature is 65 bytes
         require(_signature.length == 65, "Invalid signature length.");
 
@@ -269,14 +277,14 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
 
         // Recover signer from signature
         bytes32 dataHash = keccak256(_data);
-        address signer = ecrecover(dataHash, _signature);
+        address signer = ecrecover(dataHash, v, r, s);
 
         // Check that signer is policy guardian or that policy guardian is disabled (and return success if so)
         address _policyGuardian = policyGuardian;
-        if (signer == _policyGuardian || (signer == secondaryPolicyGuardian && signer != address(0)) || _policyGuardian == address(0) || policyGuardianPermanentlyDisabled || policyGuardianDisabled[Safe(msg.sender)]) return bytes4(0x20c13b0b);
+        if (signer == _policyGuardian || (signer == secondaryPolicyGuardian && signer != address(0)) || _policyGuardian == address(0) || policyGuardianPermanentlyDisabled || policyGuardianDisabled[Safe(payable(msg.sender))]) return bytes4(0x20c13b0b);
         
-        // Otherwise, check `tempApprovedDataHash` (and return success if equal)
-        if (dataHash != 0 && tempApprovedDataHash == dataHash) return bytes4(0x20c13b0b);
+        // Otherwise, check `_tempApprovedDataHash` (and return success if equal)
+        if (dataHash != 0 && _tempApprovedDataHash == dataHash) return bytes4(0x20c13b0b);
 
         // Return failure by default
         revert("Invalid policy guardian signature.");

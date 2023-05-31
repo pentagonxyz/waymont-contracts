@@ -41,7 +41,7 @@ contract WaymontSafeFactory {
         WaymontSafeAdvancedSigner instance;
         {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, deploymentNonce));
-            instance = WaymontSafeAdvancedSigner(payable(ClonesUpgradeable.cloneDeterministic(advancedSafeSignerImplementation, salt)));
+            instance = WaymontSafeAdvancedSigner(payable(Clones.cloneDeterministic(advancedSignerImplementation, salt)));
         }
         instance.initialize(safe, signers, threshold);
         return instance;
@@ -62,7 +62,7 @@ contract WaymontSafeFactory {
         WaymontSafeTimelockedRecoveryModule instance;
         {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, signingTimelock, requirePolicyGuardian, deploymentNonce));
-            instance = WaymontSafeTimelockedRecoveryModule(payable(ClonesUpgradeable.cloneDeterministic(timelockedRecoveryModuleImplementation, salt)));
+            instance = WaymontSafeTimelockedRecoveryModule(payable(Clones.cloneDeterministic(timelockedRecoveryModuleImplementation, salt)));
         }
         instance.initialize(safe, signers, threshold, signingTimelock, requirePolicyGuardian ? policyGuardianSigner : address(0));
         return instance;

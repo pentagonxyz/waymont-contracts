@@ -61,7 +61,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         safe = _safe;
         signingTimelock = _signingTimelock;
         policyGuardianSigner = _policyGuardianSigner;
-        WaymontSafeFactory = WaymontSafeFactory(msg.sender);
+        waymontSafeFactory = WaymontSafeFactory(msg.sender);
     }
 
     /// @notice Executes a transaction.
@@ -69,7 +69,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     /// @param value Quantity of ETH in wei to be sent to the `to` address param.
     /// @param operation Whether the transaction is a call or a delegatecall.
     /// @param signatures Signatures from the recovery signer (and policy guardian signer if enabled).
-    function execTransaction(address to, uint256 value, bytes calldata data, Enum.Operation operation, bytes calldata signatures, bytes calldata policyGuardianSignature) {
+    function execTransaction(address to, uint256 value, bytes calldata data, Enum.Operation operation, bytes calldata signatures, bytes calldata policyGuardianSignature) external {
         // Generate underlying hash
         bytes32 underlyingHash = keccak256(abi.encode(EXEC_TRANSACTION_TYPEHASH, safe, nonce++, to, value, keccak256(data), operation));
 
@@ -80,7 +80,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         checkSignatures(keccak256(txHashData), signatures);
 
         // Check signature from policy guardian (if applicable)
-        if (address(policyGuardianSigner) != address(0)) require(policyGuardianSigner.isValidSignature(txHashData, policyGuardianSignature), "Policy guardian signature validation failed.");
+        if (address(policyGuardianSigner) != address(0)) require(policyGuardianSigner.isValidSignature(txHashData, policyGuardianSignature) == bytes4(0x20c13b0b), "Policy guardian signature validation failed.");
 
         // Check timelock
         for (uint256 i = 0; i < threshold; i++) {
@@ -114,7 +114,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         bytes memory txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash));
 
         // Recover signer
-        (uint8 v, bytes32 r, bytes32 s) = splitSignature(signature, 0);
+        (uint8 v, bytes32 r, bytes32 s) = signatureSplit(signature, 0);
         address signer;
         if (v > 30) signer = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)), v - 4, r, s);
         else signer = ecrecover(txHash, v, r, s);
@@ -142,7 +142,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         pendingSignatures[signatureHash] = block.timestamp;
 
         // Emit events
-        emit SignatureQueued(signer, signedDataHash);
-        waymontSafeFactory.emitSignatureQueued(signer, signedDataHash);
+        emit SignatureQueued(signer, txHash);
+        waymontSafeFactory.emitSignatureQueued(signer, txHash);
     }
 }
