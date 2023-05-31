@@ -3,12 +3,12 @@ pragma solidity 0.8.19;
 
 import "./WaymontSafePolicyGuardianSigner.sol";
 import "./WaymontSafeAdvancedSigner.sol";
-import "./WaymontSafeTimelockedBackupSignerModule.sol";
+import "./WaymontSafeTimelockedRecoveryModule.sol";
 
 import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/ClonesUpgradeable.sol";
 
 /// @title WaymontSafeFactory
-/// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedBackupSignerModule`.
+/// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
 contract WaymontSafeFactory {
     /// @notice `WaymontSafePolicyGuardianSigner` contract.
     WaymontSafePolicyGuardianSigner public immutable policyGuardianSigner;
@@ -16,14 +16,14 @@ contract WaymontSafeFactory {
     /// @dev `WaymontSafeAdvancedSigner` implementation/logic contract address.
     address public immutable advancedSignerImplementation;
 
-    /// @dev `WaymontSafeTimelockedBackupSignerModule` implementation/logic contract address.
-    address public immutable timelockedBackupSignerModuleImplementation;
+    /// @dev `WaymontSafeTimelockedRecoveryModule` implementation/logic contract address.
+    address public immutable timelockedRecoveryModuleImplementation;
 
     /// @dev Constructor to initialize the factory by deploying the 3 other Waymont contracts.
     constructor(address _policyGuardianManager) {
         policyGuardianSigner = new WaymontSafePolicyGuardianSigner(_policyGuardianManager);
         advancedSignerImplementation = new WaymontSafeAdvancedSigner();
-        timelockedBackupSignerModuleImplementation = new WaymontSafeTimelockedBackupSignerModule();
+        timelockedRecoveryModuleImplementation = new WaymontSafeTimelockedRecoveryModule();
     }
 
     /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeAdvancedSigner`.
@@ -45,22 +45,22 @@ contract WaymontSafeFactory {
         return instance;
     }
 
-    /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeTimelockedBackupSignerModule`.
-    /// @dev See `WaymontSafeTimelockedBackupSignerModule` for other params.
-    /// @param deploymentNonce The unique nonce for the deployed signer contract. If the contract address of the `WaymontSafeFactory` and the `WaymontSafeTimelockedBackupSignerModule` implementation is the same across each chain (which it will be if the same private key deploys them with the same nonces), then the contract addresses of the `WaymontSafeTimelockedBackupSignerModule` instances created will also be the same across all chains according to the combination of initialization parameters (`safe`, `signers`, `threshold`, `signingTimelock`, `requirePolicyGuardian`, and `deploymentNonce`).
-    /// @return `WaymontSafeTimelockedBackupSignerModule` interface for the deployed proxy.
-    function createTimelockedBackupSignerModule(
+    /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeTimelockedRecoveryModule`.
+    /// @dev See `WaymontSafeTimelockedRecoveryModule` for other params.
+    /// @param deploymentNonce The unique nonce for the deployed signer contract. If the contract address of the `WaymontSafeFactory` and the `WaymontSafeTimelockedRecoveryModule` implementation is the same across each chain (which it will be if the same private key deploys them with the same nonces), then the contract addresses of the `WaymontSafeTimelockedRecoveryModule` instances created will also be the same across all chains according to the combination of initialization parameters (`safe`, `signers`, `threshold`, `signingTimelock`, `requirePolicyGuardian`, and `deploymentNonce`).
+    /// @return `WaymontSafeTimelockedRecoveryModule` interface for the deployed proxy.
+    function createTimelockedRecoveryModule(
         Safe safe,
         address[] calldata signers,
         uint256 threshold,
         uint256 signingTimelock,
         bool requirePolicyGuardian,
         uint256 deploymentNonce
-    ) external returns (WaymontSafeTimelockedBackupSignerModule) {
-        WaymontSafeTimelockedBackupSignerModule instance;
+    ) external returns (WaymontSafeTimelockedRecoveryModule) {
+        WaymontSafeTimelockedRecoveryModule instance;
         {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, signingTimelock, requirePolicyGuardian, deploymentNonce));
-            instance = WaymontSafeTimelockedBackupSignerModule(payable(ClonesUpgradeable.cloneDeterministic(timelockedBackupSignerModuleImplementation, salt)));
+            instance = WaymontSafeTimelockedRecoveryModule(payable(ClonesUpgradeable.cloneDeterministic(timelockedRecoveryModuleImplementation, salt)));
         }
         instance.initialize(safe, signers, threshold, signingTimelock, requirePolicyGuardian ? policyGuardianSigner : address(0));
         return instance;
@@ -70,13 +70,13 @@ contract WaymontSafeFactory {
     /// Useful for sending security notifications to `Safe` owners if the policy guardian cannot find record of itself sending the transaction hash associated with a `SignatureQueued` event.
     /// Only contains the signer as a parameter because that is all that is needed to know if an extra signature was queued and which signer it was from (so that signer can be removed).
     /// WARNING: The function that emits this event is not access-gated (in the interest of reducing gas costs and avoiding unnecessary smart contract complexity), so make sure to check underlying `Safe` addresses for validity. If events are spammed on a chain and `eth_getLogs` times out, `Safe`s can be checked individually (in descending order of net worth on that chain).
-    event SignatureQueued(Safe indexed safe, WaymontSafeTimelockedBackupSignerModule indexed timelockedBackupSignerModule, address indexed signer, bytes32 signedDataHash);
+    event SignatureQueued(Safe indexed safe, WaymontSafeTimelockedRecoveryModule indexed timelockedRecoveryModule, address indexed signer, bytes32 signedDataHash);
 
     /// @dev Emits a `SignatureQueued` event.
     function emitSignatureQueued(address signer, bytes32 signedDataHash) external {
-        WaymontSafeTimelockedBackupSignerModule timelockedBackupSignerModule = WaymontSafeTimelockedBackupSignerModule(msg.sender);
-        Safe safe = timelockedBackupSignerModule.safe();
-        require(safe.isModuleEnabled(timelockedBackupSignerModule), "The Safe does not have this Waymont module enabled.");
-        emit SignatureQueued(Safe(msg.sender), timelockedBackupSignerModule, signer, signedDataHash);
+        WaymontSafeTimelockedRecoveryModule timelockedRecoveryModule = WaymontSafeTimelockedRecoveryModule(msg.sender);
+        Safe safe = timelockedRecoveryModule.safe();
+        require(safe.isModuleEnabled(timelockedRecoveryModule), "The Safe does not have this Waymont module enabled.");
+        emit SignatureQueued(Safe(msg.sender), timelockedRecoveryModule, signer, signedDataHash);
     }
 }

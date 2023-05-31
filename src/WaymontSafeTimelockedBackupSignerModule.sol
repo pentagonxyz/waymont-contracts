@@ -9,9 +9,9 @@ import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 import "lib/safe-contracts/contracts/CheckSignatures.sol";
 import "lib/safe-contracts/contracts/common/Enum.sol";
 
-/// @title WaymontSafeTimelockedBackupSignerModule
+/// @title WaymontSafeTimelockedRecoveryModule
 /// @notice Module for Gnosis Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
-contract WaymontSafeTimelockedBackupSignerModule is EIP712DomainSeparator, CheckSignatures {
+contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSignatures {
     /// @dev Typehash for `queueTransaction`: `keccak256("QueueSignature(bytes signature)")`.
     bytes32 private constant QUEUE_SIGNATURE_TYPEHASH = 0x56f7b592467518044b02545f1b4518cd51c746d04978afb6a3b9d05895cb79cf;
 
