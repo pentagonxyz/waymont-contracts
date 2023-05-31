@@ -267,7 +267,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
         // Decode signature from bytes
         bytes32 r;
         bytes32 s;
-        bytes32 v;
+        uint8 v;
 
         assembly {
             r := mload(add(_signature, 0x20))

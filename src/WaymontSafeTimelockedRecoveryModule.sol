@@ -111,7 +111,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     /// @param policyGuardianSignature The signature from the policy guardian on `signature` (if applicable).
     function queueSignature(bytes32 underlyingHash, bytes calldata signature, bytes calldata policyGuardianSignature) external {
         // Generate overlying signed data hash
-        bytes memory txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash));
+        bytes32 txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash));
 
         // Recover signer
         (uint8 v, bytes32 r, bytes32 s) = signatureSplit(signature, 0);
@@ -129,13 +129,13 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         // Validate policy guardian signature (if applicable)
         if (address(policyGuardianSigner) != address(0)) {
             // Generate underlying hash
-            bytes memory queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, signatureHash));
+            bytes32 queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, signatureHash));
 
             // Generate overlying signed data
             bytes memory queueSignatureMsgHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), queueSignatureUnderlyingHash);
             
             // Validate signature
-            require(policyGuardianSigner.isValidSignature(queueSignatureMsgHashData, policyGuardianSignature), "Policy guardian signature validation failed.");
+            require(policyGuardianSigner.isValidSignature(queueSignatureMsgHashData, policyGuardianSignature) == bytes4(0x20c13b0b), "Policy guardian signature validation failed.");
         }
 
         // Queue signature

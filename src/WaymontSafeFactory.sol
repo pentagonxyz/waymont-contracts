@@ -24,8 +24,8 @@ contract WaymontSafeFactory {
     /// @dev Constructor to initialize the factory by deploying the 3 other Waymont contracts.
     constructor(address _policyGuardianManager) {
         policyGuardianSigner = new WaymontSafePolicyGuardianSigner(_policyGuardianManager);
-        advancedSignerImplementation = new WaymontSafeAdvancedSigner();
-        timelockedRecoveryModuleImplementation = new WaymontSafeTimelockedRecoveryModule();
+        advancedSignerImplementation = address(new WaymontSafeAdvancedSigner());
+        timelockedRecoveryModuleImplementation = address(new WaymontSafeTimelockedRecoveryModule());
     }
 
     /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeAdvancedSigner`.
@@ -64,7 +64,7 @@ contract WaymontSafeFactory {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, signingTimelock, requirePolicyGuardian, deploymentNonce));
             instance = WaymontSafeTimelockedRecoveryModule(payable(Clones.cloneDeterministic(timelockedRecoveryModuleImplementation, salt)));
         }
-        instance.initialize(safe, signers, threshold, signingTimelock, requirePolicyGuardian ? policyGuardianSigner : address(0));
+        instance.initialize(safe, signers, threshold, signingTimelock, requirePolicyGuardian ? policyGuardianSigner : WaymontSafePolicyGuardianSigner(address(0)));
         return instance;
     }
 
@@ -78,7 +78,7 @@ contract WaymontSafeFactory {
     function emitSignatureQueued(address signer, bytes32 signedDataHash) external {
         WaymontSafeTimelockedRecoveryModule timelockedRecoveryModule = WaymontSafeTimelockedRecoveryModule(msg.sender);
         Safe safe = timelockedRecoveryModule.safe();
-        require(safe.isModuleEnabled(timelockedRecoveryModule), "The Safe does not have this Waymont module enabled.");
-        emit SignatureQueued(Safe(msg.sender), timelockedRecoveryModule, signer, signedDataHash);
+        require(safe.isModuleEnabled(address(timelockedRecoveryModule)), "The Safe does not have this Waymont module enabled.");
+        emit SignatureQueued(safe, timelockedRecoveryModule, signer, signedDataHash);
     }
 }
