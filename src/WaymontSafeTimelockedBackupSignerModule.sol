@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.19;
 
-import "./WaymontSafeFactory.sol";
-import "./WaymontSafePolicyGuardianSigner.sol";
-
 import "lib/safe-contracts/contracts/Safe.sol";
 import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 import "lib/safe-contracts/contracts/CheckSignatures.sol";
 import "lib/safe-contracts/contracts/common/Enum.sol";
+
+import "./WaymontSafeFactory.sol";
+import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeTimelockedRecoveryModule
 /// @notice Module for Gnosis Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
