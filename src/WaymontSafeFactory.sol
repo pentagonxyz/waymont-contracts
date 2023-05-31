@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.19;
 
-import "lib/openzeppelin-contracts-upgradeable/contracts/proxy/ClonesUpgradeable.sol";
+import "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
 
 import "lib/safe-contracts/contracts/Safe.sol";
 
