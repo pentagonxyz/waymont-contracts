@@ -129,7 +129,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         // Validate policy guardian signature (if applicable)
         if (address(policyGuardianSigner) != address(0)) {
             // Generate underlying hash
-            bytes memory queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, keccak256(signature)));
+            bytes memory queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, signatureHash));
 
             // Generate overlying signed data
             bytes memory queueSignatureMsgHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), queueSignatureUnderlyingHash);
