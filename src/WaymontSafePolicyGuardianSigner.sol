@@ -16,8 +16,8 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @dev Typehash for `disablePolicyGuardian`: `keccak256("DisablePolicyGuardian(uint256 nonce)")`.
     bytes32 private constant DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x1fa738809572ae202e6e8b28ae7d08f5972c3ae85e70f8bc386515bb47925975;
 
-    /// @notice Default policy guardian timelock (in seconds): 14 days.
-    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 14 days;
+    /// @notice Default policy guardian timelock (in seconds): 2 weeks.
+    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 2 weeks;
 
     /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
     uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 minutes;
