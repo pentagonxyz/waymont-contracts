@@ -311,6 +311,64 @@ contract WaymontSafeFactoryTest is Test {
         assert(dummy == 22222222);
     }
 
+    function testDisablePolicyGuardianWithoutPolicyGuardian() public {
+        // Generate underlying hash + overlying signed data (to queue disabling)
+        WaymontSafePolicyGuardianSigner policyGuardianSigner = waymontSafeFactory.policyGuardianSigner();
+        uint256 signerNonce = policyGuardianSigner.nonces(safeInstance);
+        bytes32 underlyingHash = keccak256(abi.encode(QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
+        bytes memory txHash = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash);
+
+        // Generate user signing device signature #1 (to queue disabling)
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
+        bytes memory userSignature1 = abi.encodePacked(r, s, v);
+
+        // Generate user signing device signature #2 (to queue disabling)
+        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        bytes memory userSignature2 = abi.encodePacked(r, s, v + 4);
+
+        // Pack user signatures (to queue disabling)
+        bytes memory packedUserSignaturesForQueueing = abi.encodePacked(userSignature1, userSignature2);
+
+        // Generate underlying hash + overlying signed data (to execute disabling)
+        underlyingHash = keccak256(abi.encode(DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
+        txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash));
+
+        // Generate user signing device signature #1 (to execute disabling)
+        (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
+        userSignature1 = abi.encodePacked(r, s, v);
+
+        // Generate user signing device signature #2 (to execute disabling)
+        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        userSignature2 = abi.encodePacked(r, s, v + 4);
+
+        // Pack user signatures (to execute disabling)
+        bytes memory packedUserSignatures = abi.encodePacked(userSignature1, userSignature2);
+
+        // Fail to disable the policy guardian since not yet queued
+        vm.expectRevert("Action not queued.");
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+
+        // Queue the disabling of the policy guardian
+        policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedUserSignaturesForQueueing);
+        assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
+        assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps[safeInstance] == block.timestamp);
+
+        // Wait almost for the timelock to pass
+        vm.warp(block.timestamp + 3 days - 1 seconds);
+
+        // Fail to disable the policy guardian
+        vm.expectRevert("Timelock not satisfied.");
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+
+        // Wait for the timelock to pass in full
+        vm.warp(block.timestamp + 1 seconds);
+
+        // Disable the policy guardian
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+        assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
+        assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
+    }
+
     function testSocialRecovery() public {
         // Underlying transaction params
         address to = address(safeInstance);
