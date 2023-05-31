@@ -77,7 +77,7 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash);
 
         // Check signatures
-        checkSignatures(keccak256(txHashData), txHashData, signatures);
+        checkSignatures(keccak256(txHashData), signatures);
 
         // Check signature from policy guardian (if applicable)
         if (address(policyGuardianSigner) != address(0)) require(policyGuardianSigner.isValidSignature(txHashData, policyGuardianSignature), "Policy guardian signature validation failed.");

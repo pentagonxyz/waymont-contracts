@@ -158,7 +158,7 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
         tempApprovedDataHash = keccak256(data);
 
         // Check that `data` has been signed by `signatures` across all signers including this contract
-        safe.checkSignatures(keccak256(data), data, signatures);
+        safe.checkSignatures(keccak256(data), signatures);
 
         // Delete temporary storage for gas refund
         delete tempApprovedDataHash;
