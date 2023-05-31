@@ -22,6 +22,9 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
     uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 minutes;
 
+    /// @notice Time to expiry after a signature has been queued (in seconds): 1 week.
+    uint256 public constant QUEUED_SIGNATURE_EXPIRATION = 1 weeks;
+
     /// @notice The primary policy guardian address.
     /// WARNING: If this variable is set to the zero address, wallets will not require signatures from either policy guardian address--so do NOT set this variable to the zero address unless you are sure you want to allow all transactions to bypass the policy guardian's firewall.
     /// The (primary or secondary) policy guardian must sign all transactions for a `Wallet`, unless the policy guardian is deactivated on a `Wallet` or if the primary `policyGuardian` is set to the zero address here, in which case all transactinos will bypass the policy guardian's firewall.
@@ -245,7 +248,9 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
         // Check timelock
         uint256 timestamp = disablePolicyGuardianQueueTimestamps[safe];
         require(timestamp > 0, "Action not queued.");
-        require(timestamp + getPolicyGuardianTimelock(safe) <= block.timestamp, "Timelock not satisfied.");
+        uint256 minExecutionTimestamp = timestamp + getPolicyGuardianTimelock(safe);
+        require(block.timestamp >= minExecutionTimestamp, "Timelock not satisfied.");
+        require(block.timestamp <= minExecutionTimestamp + QUEUED_SIGNATURE_EXPIRATION, "Queued signatures are only usable for 1 week until they expire.");
 
         // Disable it
         policyGuardianDisabled[safe] = true;

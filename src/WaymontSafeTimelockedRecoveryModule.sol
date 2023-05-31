@@ -21,6 +21,9 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     /// @dev Minimum signing timelock value (in seconds): 15 minutes.
     uint256 public constant MIN_SIGNING_TIMELOCK = 15 minutes;
 
+    /// @notice Time to expiry after a signature has been queued (in seconds): 1 week.
+    uint256 public constant QUEUED_SIGNATURE_EXPIRATION = 1 weeks;
+
     /// @notice Timelock for signers on this contract to submit signed transactions.
     uint256 public signingTimelock;
 
@@ -87,7 +90,9 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
             uint256 offset = i * 65;
             uint256 timestamp = pendingSignatures[keccak256(signatures[offset:offset + 65])];
             require(timestamp > 0, "Signature not queued.");
-            require(timestamp + signingTimelock <= block.timestamp, "Timelock not satisfied.");
+            uint256 minExecutionTimestamp = timestamp + signingTimelock;
+            require(block.timestamp >= minExecutionTimestamp, "Timelock not satisfied.");
+            require(block.timestamp <= minExecutionTimestamp + QUEUED_SIGNATURE_EXPIRATION, "Queued signatures are only usable for 1 week until they expire.");
         }
 
         // Execute transaction
