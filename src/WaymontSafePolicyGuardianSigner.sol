@@ -17,10 +17,10 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
     bytes32 private constant DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x1fa738809572ae202e6e8b28ae7d08f5972c3ae85e70f8bc386515bb47925975;
 
     /// @notice Default policy guardian timelock (in seconds): 14 days.
-    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 86400 * 14;
+    uint256 public constant DEFAULT_POLICY_GUARDIAN_TIMELOCK = 14 days;
 
     /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
-    uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 * 60;
+    uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 minutes;
 
     /// @notice The primary policy guardian address.
     /// WARNING: If this variable is set to the zero address, wallets will not require signatures from either policy guardian address--so do NOT set this variable to the zero address unless you are sure you want to allow all transactions to bypass the policy guardian's firewall.
