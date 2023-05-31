@@ -210,7 +210,7 @@ contract WaymontPolicyGuardianSafeSigner is EIP712DomainSeparator {
 
     /// @notice Unqueues a timelocked action.
     /// @param signatures Signatures from `threshold - 1` signers (excluding the policy guardian).
-    function unqueueDisablePolicyGuardian(Signature[] calldata signatures) external {
+    function unqueueDisablePolicyGuardian(Safe safe, bytes calldata signatures) external {
         // Ensure not already disabled
         require(!policyGuardianDisabled[safe], "Policy guardian already disabled.");
 
