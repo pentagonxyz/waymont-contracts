@@ -129,17 +129,19 @@ contract WaymontSafeFactoryTest is Test {
         assert(signatures.length == signers.length);
         assert(signatures.length > 0);
         if (signatures.length == 1) return signatures[0];
+
         for (uint256 i = 1; i < signers.length; i++) {
             address signer = signers[i];
             bytes memory signature = signatures[i];
             uint256 j;
-            for (j = i - 1; j >= 0 && signer < signers[j]; j--) {
-                signers[j + 1] = signers[j];
-                signatures[j + 1] = signatures[j];
+            for (j = i; j > 0 && signer < signers[j - 1]; j--) {
+                signers[j] = signers[j - 1];
+                signatures[j] = signatures[j - 1];
             }
-            signers[j + 1] = signer;
-            signatures[j + 1] = signature;
+            signers[j] = signer;
+            signatures[j] = signature;
         }
+
         packedOrderedSignatures = signatures[0];
         for (uint256 i = 1; i < signatures.length; i++) packedOrderedSignatures = abi.encodePacked(packedOrderedSignatures, signatures[i]);
     }
