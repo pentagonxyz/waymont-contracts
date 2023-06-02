@@ -125,6 +125,25 @@ contract WaymontSafeFactoryTest is Test {
         bool requirePolicyGuardianForRecovery;
     }
 
+    function _packSignaturesOrderedBySigner(bytes[] memory signatures, address[] memory signers) internal returns (bytes memory packedOrderedSignatures) {
+        assert(signatures.length == signers.length);
+        assert(signatures.length > 0);
+        if (signatures.length == 1) return signatures[0];
+        for (uint256 i = 1; i < signers.length; i++) {
+            address signer = signers[i];
+            bytes memory signature = signatures[i];
+            uint256 j;
+            for (j = i - 1; j >= 0 && signer < signers[j]; j--) {
+                signers[j + 1] = signers[j];
+                signatures[j + 1] = signatures[j];
+            }
+            signers[j + 1] = signer;
+            signatures[j + 1] = signature;
+        }
+        packedOrderedSignatures = signatures[0];
+        for (uint256 i = 1; i < signatures.length; i++) packedOrderedSignatures = abi.encodePacked(packedOrderedSignatures, signatures[i]);
+    }
+
     function setUpWaymontSafe() public {
         // WaymontAdvancedSigner params
         address[] memory underlyingOwners = new address[](3);
@@ -173,10 +192,18 @@ contract WaymontSafeFactoryTest is Test {
             bytes memory data = abi.encodeWithSelector(safeInstance.swapOwner.selector, initialOverlyingSigners[0], initialOverlyingSigners[1], predictedAdvancedSignerInstanceAddress);
 
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignature) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 2);
+            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 2);
 
-            // Pack all overlying signatures
-            bytes memory packedOverlyingSignatures = abi.encodePacked(userSignature1, userSignature2, policyGuardianOverlyingSignature);
+            // Order and pack all overlying signatures
+            address[] memory signers = new address[](3);
+            signers[0] = address(policyGuardianSigner);
+            signers[1] = ALICE;
+            signers[2] = BOB;
+            bytes[] memory signatures = new bytes[](3);
+            signatures[0] = policyGuardianOverlyingSignaturePointer;
+            signatures[1] = userSignature1;
+            signatures[2] = userSignature2;
+            bytes memory packedOverlyingSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(signatures, signers), policyGuardianOverlyingSignatureData);
 
             // Safe.execTransaction
             safeInstance.execTransaction(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
@@ -213,20 +240,32 @@ contract WaymontSafeFactoryTest is Test {
             bytes memory data = abi.encodeWithSelector(safeInstance.removeOwner.selector, address(advancedSignerInstance), initialOverlyingSigners[2], finalOverlyingThreshold);
 
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignature) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 2);
+            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 2);
 
             // Pack user signatures
             bytes memory packedUserSignatures = abi.encodePacked(userSignature1, userSignature2);
 
             // Generate overlying WaymontSafeAdvancedSigner signature
-            bytes memory advancedSignerOverlyingSignature = abi.encodePacked(
+            bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
                 bytes32(uint256(uint160(address(advancedSignerInstance)))),
                 uint256((65 * 3) + 32 + 65),
-                uint256(0)
+                uint8(0)
+            );
+            bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
+                uint256(65),
+                packedUserSignatures
             );
 
-            // Pack all overlying signatures
-            bytes memory packedOverlyingSignatures = abi.encodePacked(userSignature1, advancedSignerOverlyingSignature, policyGuardianOverlyingSignature, uint256(65), packedUserSignatures);
+            // Order and pack all overlying signatures
+            address[] memory signers = new address[](3);
+            signers[0] = address(policyGuardianSigner);
+            signers[1] = address(advancedSignerInstance);
+            signers[2] = BOB;
+            bytes[] memory signatures = new bytes[](3);
+            signatures[0] = policyGuardianOverlyingSignaturePointer;
+            signatures[1] = advancedSignerOverlyingSignaturePointer;
+            signatures[2] = userSignature2;
+            bytes memory packedOverlyingSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(signatures, signers), policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
 
             // Safe.execTransaction
             safeInstance.execTransaction(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
@@ -374,18 +413,11 @@ contract WaymontSafeFactoryTest is Test {
     function _getUserSignaturesAndOverlyingPolicyGuardianSignature(address to, uint256 value, bytes memory data, uint256 overlyingSignaturesBeforePolicyGuardian) internal view returns (
         bytes memory userSignature1,
         bytes memory userSignature2,
-        bytes memory policyGuardianOverlyingSignature
+        bytes memory policyGuardianOverlyingSignaturePointer,
+        bytes memory policyGuardianOverlyingSignatureData
     ) {
-        // Standard Safe.execTransaction params
-        Enum.Operation operation = Enum.Operation.Call;
-        uint256 safeTxGas = 0;
-        uint256 baseGas = 0;
-        uint256 gasPrice = 0;
-        address gasToken = address(0);
-        address payable refundReceiver = payable(address(0));
-        
         // Generate data hash for the new transaction
-        bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safeInstance.nonce()));
+        bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), safeInstance.nonce()));
 
         // Generate user signing device signature #1
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
@@ -400,10 +432,12 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory policyGuardianUnderlyingSignature = abi.encodePacked(r, s, v);
 
         // Generate overlying policy guardian smart contract signature
-        policyGuardianOverlyingSignature = abi.encodePacked(
+        policyGuardianOverlyingSignaturePointer = abi.encodePacked(
             bytes32(uint256(uint160(address(policyGuardianSigner)))),
             uint256((overlyingSignaturesBeforePolicyGuardian + 1) * 65),
-            uint256(0),
+            uint8(0)
+        );
+        policyGuardianOverlyingSignatureData = abi.encodePacked(
             uint256(65),
             policyGuardianUnderlyingSignature
         );
@@ -422,20 +456,28 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignature) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 1);
+            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 1);
 
             // Pack user signatures
             bytes memory packedUserSignatures = abi.encodePacked(userSignature1, userSignature2);
 
             // Generate overlying WaymontSafeAdvancedSigner signature
-            bytes memory advancedSignerOverlyingSignature = abi.encodePacked(
+            bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
                 bytes32(uint256(uint160(address(advancedSignerInstance)))),
                 uint256(65 * 4),
-                uint256(0)
+                uint8(0)
+            );
+            bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
+                uint256(65),
+                packedUserSignatures
             );
 
-            // Pack all overlying signatures
-            packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignature, policyGuardianOverlyingSignature, uint256(65), packedUserSignatures);
+            // Pack all overlying signatures (in correct order)
+            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            } else {
+                packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            }
         }
 
         // Safe.execTransaction
@@ -550,7 +592,7 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Pack friend signatures
-        bytes memory packedFriendSignatures = abi.encodePacked(friendSignature1, friendSignature2);
+        bytes memory packedFriendSignatures = FRIEND_TWO > FRIEND_ONE ? abi.encodePacked(friendSignature1, friendSignature2) : abi.encodePacked(friendSignature2, friendSignature1);
 
         // Generate policy guardian signature for execTransaction
         bytes memory finalPolicyGuardianSignature;
