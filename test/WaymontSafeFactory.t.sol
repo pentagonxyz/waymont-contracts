@@ -213,7 +213,7 @@ contract WaymontSafeFactoryTest is Test {
 
         // Assert signers modified correctly
         {
-            address[] memory tempOverlyingSigners = new address[](2);
+            address[] memory tempOverlyingSigners = new address[](3);
             tempOverlyingSigners[0] = address(policyGuardianSigner);
             tempOverlyingSigners[1] = predictedAdvancedSignerInstanceAddress;
             tempOverlyingSigners[2] = BOB;
@@ -254,7 +254,7 @@ contract WaymontSafeFactoryTest is Test {
                 uint8(0)
             );
             bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
-                uint256(65),
+                uint256(65 * 2),
                 packedUserSignatures
             );
 
@@ -470,7 +470,7 @@ contract WaymontSafeFactoryTest is Test {
                 uint8(0)
             );
             bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
-                uint256(65),
+                uint256(65 * 2),
                 packedUserSignatures
             );
 
