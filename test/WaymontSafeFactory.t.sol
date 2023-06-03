@@ -450,6 +450,44 @@ contract WaymontSafeFactoryTest is Test {
         policyGuardianSigner.disablePolicyGuardianPermanently();
     }
 
+    function testDisablePolicyGuardian() public {
+        // Transaction params
+        address to = address(policyGuardianSigner);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(policyGuardianSigner.disablePolicyGuardian.selector);
+
+        // Safe.execTransaction
+        _execTransaction(to, value, data);
+
+        // Assert TX succeeded
+        assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
+    }
+
+    function testSetPolicyGuardianTimelock() public {
+        // Transaction params
+        address to = address(policyGuardianSigner);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 7 days);
+
+        // Safe.execTransaction
+        _execTransaction(to, value, data);
+
+        // Assert TX succeeded
+        assert(policyGuardianSigner.getPolicyGuardianTimelock(safeInstance) == 7 days);
+        assert(policyGuardianSigner.customPolicyGuardianTimelocks(safeInstance) == 7 days);
+    }
+
+    function testCannotSetPolicyGuardianTimelockBelowMin() public {
+        // Transaction params
+        address to = address(policyGuardianSigner);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 14 minutes);
+
+        // Safe.execTransaction
+        vm.expectRevert("Policy guardian timelock must be at least 15 minutes. Call disablePolicyGuardian to disable it.");
+        _execTransaction(to, value, data);
+    }
+
     function testExecTransaction() public {
         // Send ETH to Safe
         vm.deal(address(safeInstance), 1337);
