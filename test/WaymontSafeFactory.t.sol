@@ -631,8 +631,8 @@ contract WaymontSafeFactoryTest is Test {
 
     function testSocialRecovery() public {
         // Underlying transaction params
-        address to = address(safeInstance);
-        bytes memory data = abi.encodeWithSelector(safeInstance.addOwnerWithThreshold.selector, JOE_REPLACEMENT, 2);
+        address to = address(advancedSignerInstance);
+        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, BOB, JOE, JOE_REPLACEMENT);
 
         // Standard params
         uint256 value = 0;
@@ -704,7 +704,8 @@ contract WaymontSafeFactoryTest is Test {
 
         // Assert TX succeeded
         assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
-        assert(safeInstance.isOwner(JOE_REPLACEMENT));
+        assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
+        assert(!advancedSignerInstance.isOwner(JOE));
     }
 
     function sampleWalletOnlyFunction(uint256 arg) public payable {
