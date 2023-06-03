@@ -461,7 +461,7 @@ contract WaymontSafeFactoryTest is Test {
             (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 1);
 
             // Pack user signatures
-            bytes memory packedUserSignatures = abi.encodePacked(userSignature1, userSignature2);
+            bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
             // Generate overlying WaymontSafeAdvancedSigner signature
             bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -500,8 +500,27 @@ contract WaymontSafeFactoryTest is Test {
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
         bytes memory userSignature2 = abi.encodePacked(r, s, v + 4);
 
-        // Pack user signatures (to queue disabling)
-        bytes memory packedUserSignaturesForQueueing = abi.encodePacked(userSignature1, userSignature2);
+        // Generate overlying policy guardian smart contract signature (to execute disabling)
+        bytes memory policyGuardianOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(policyGuardianSigner)))),
+            uint256(3 * 65),
+            uint8(0)
+        );
+        bytes memory policyGuardianOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            hex'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+        );
+
+        // Order and pack all overlying signatures--including user signatures and a zeroed-out policy guardian signature (to queue disabling)
+        address[] memory signers = new address[](3);
+        signers[0] = address(policyGuardianSigner);
+        signers[1] = ALICE;
+        signers[2] = BOB;
+        bytes[] memory signatures = new bytes[](3);
+        signatures[0] = policyGuardianOverlyingSignaturePointer;
+        signatures[1] = userSignature1;
+        signatures[2] = userSignature2;
+        bytes memory packedOverlyingSignaturesForQueueing = _packSignaturesOrderedBySigner(signatures, signers);
 
         // Generate underlying hash + overlying signed data (to execute disabling)
         underlyingHash = keccak256(abi.encode(DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
@@ -515,15 +534,34 @@ contract WaymontSafeFactoryTest is Test {
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
         userSignature2 = abi.encodePacked(r, s, v + 4);
 
-        // Pack user signatures (to execute disabling)
-        bytes memory packedUserSignatures = abi.encodePacked(userSignature1, userSignature2);
+        // Generate overlying policy guardian smart contract signature (to execute disabling)
+        policyGuardianOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(policyGuardianSigner)))),
+            uint256(3 * 65),
+            uint8(0)
+        );
+        policyGuardianOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            hex'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+        );
+
+        // Order and pack all overlying signatures--including user signatures and a zeroed-out policy guardian signature (to execute disabling)
+        signers = new address[](3);
+        signers[0] = address(policyGuardianSigner);
+        signers[1] = ALICE;
+        signers[2] = BOB;
+        signatures = new bytes[](3);
+        signatures[0] = policyGuardianOverlyingSignaturePointer;
+        signatures[1] = userSignature1;
+        signatures[2] = userSignature2;
+        bytes memory packedOverlyingSignatures = _packSignaturesOrderedBySigner(signatures, signers);
 
         // Fail to disable the policy guardian since not yet queued
         vm.expectRevert("Action not queued.");
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
 
         // Queue the disabling of the policy guardian
-        policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedUserSignaturesForQueueing);
+        policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedOverlyingSignaturesForQueueing);
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == block.timestamp);
 
@@ -532,13 +570,13 @@ contract WaymontSafeFactoryTest is Test {
 
         // Fail to disable the policy guardian
         vm.expectRevert("Timelock not satisfied.");
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
 
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
 
         // Disable the policy guardian
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedUserSignatures);
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
     }
@@ -567,7 +605,7 @@ contract WaymontSafeFactoryTest is Test {
             // Generate policy guardian signature for recovery guardian #1 for queueSignature
             bytes32 queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, keccak256(friendSignature1)));
             bytes32 queueSignatureMsgHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), timelockedRecoveryModuleInstance.domainSeparator(), queueSignatureUnderlyingHash));
-            (v, r, s) = vm.sign(FRIEND_ONE_PRIVATE, queueSignatureMsgHash);
+            (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, queueSignatureMsgHash);
             bytes memory friend1PolicyGuardianSignature = abi.encodePacked(r, s, v);
 
             // Queue signature #1
@@ -585,7 +623,7 @@ contract WaymontSafeFactoryTest is Test {
             // Generate policy guardian signature for recovery guardian #2 for queueSignature
             bytes32 queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, keccak256(friendSignature2)));
             bytes32 queueSignatureMsgHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), timelockedRecoveryModuleInstance.domainSeparator(), queueSignatureUnderlyingHash));
-            (v, r, s) = vm.sign(FRIEND_ONE_PRIVATE, queueSignatureMsgHash);
+            (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, queueSignatureMsgHash);
             bytes memory friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
 
             // Queue signature #2
