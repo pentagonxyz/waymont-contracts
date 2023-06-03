@@ -190,7 +190,11 @@ contract WaymontSafeFactoryTest is Test {
         bytes32 salt = keccak256(abi.encode(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce));
         address predictedAdvancedSignerInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.advancedSignerImplementation(), salt, address(waymontSafeFactory));
 
-        // Add WaymontAdvancedSigner to Safe as signer
+        // Try and fail to deploy WaymontSafeAdvancedSigner (since it has not yet been added to the Safe)
+        vm.expectRevert("The Safe is not owned by this Waymont signer contract.");
+        advancedSignerInstance = waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+
+        // Add WaymontSafeAdvancedSigner to Safe as signer
         {
             // Set params for execTransaction
             address to = address(safeInstance);
@@ -226,8 +230,12 @@ contract WaymontSafeFactoryTest is Test {
             assert(safeInstance.getThreshold() == initialOverlyingThreshold);
         }
 
-        // Deploy WaymontAdvancedSigner (now that it has been added to the Safe)
+        // Deploy WaymontSafeAdvancedSigner (now that it has been added to the Safe)
         advancedSignerInstance = waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+
+        // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
+        vm.expectRevert("GS200");
+        advancedSignerInstance.initialize(safeInstance, underlyingOwners, underlyingThreshold);
 
         // Assert deployed correctly
         assert(address(advancedSignerInstance) == predictedAdvancedSignerInstanceAddress);
@@ -347,6 +355,16 @@ contract WaymontSafeFactoryTest is Test {
             moduleCreationParams.recoverySigningTimelock,
             moduleCreationParams.requirePolicyGuardianForRecovery,
             deploymentNonce
+        );
+
+        // Try and fail to re-initialize the WaymontSafeTimelockedRecoveryModule instance
+        vm.expectRevert("GS200");
+        timelockedRecoveryModuleInstance.initialize(
+            safeInstance,
+            moduleCreationParams.recoverySigners,
+            moduleCreationParams.recoveryThreshold,
+            moduleCreationParams.recoverySigningTimelock,
+            policyGuardianSigner
         );
 
         // Assert deployed correctly
