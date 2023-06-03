@@ -85,6 +85,8 @@ contract WaymontSafeFactoryTest is Test {
         compatibilityFallbackHandler = new CompatibilityFallbackHandler();
     }
 
+    event PolicyGuardianChanged(address _policyGuardian);
+
     function setUpWaymontSafeFactory() public {
         // Fail to use zero address for policy guardian manager
         vm.expectRevert("Invalid policy guardian manager.");
@@ -114,6 +116,8 @@ contract WaymontSafeFactoryTest is Test {
 
         // Set the policy guardian
         vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianChanged(POLICY_GUARDIAN);
         policyGuardianSigner.setPolicyGuardian(POLICY_GUARDIAN);
         assert(policyGuardianSigner.policyGuardian() == POLICY_GUARDIAN);
     }
@@ -292,6 +296,17 @@ contract WaymontSafeFactoryTest is Test {
         salt = keccak256(abi.encode(safeInstance, moduleCreationParams.recoverySigners, moduleCreationParams.recoveryThreshold, moduleCreationParams.recoverySigningTimelock, moduleCreationParams.requirePolicyGuardianForRecovery, deploymentNonce));
         address predictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(waymontSafeFactory));
 
+        // Try and fail to deploy WaymontSafeTimelockedRecoveryModule before enabling
+        vm.expectRevert("The Safe does not have this Waymont module enabled.");
+        timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
+            safeInstance,
+            moduleCreationParams.recoverySigners,
+            moduleCreationParams.recoveryThreshold,
+            moduleCreationParams.recoverySigningTimelock,
+            moduleCreationParams.requirePolicyGuardianForRecovery,
+            deploymentNonce
+        );
+
         // Enable WaymontSafeTimelockedRecoveryModule on the Safe
         {
             // Set params for execTransaction
@@ -312,6 +327,17 @@ contract WaymontSafeFactoryTest is Test {
             assert(safeInstance.getOwners().length == finalOverlyingSigners.length);
             assert(safeInstance.getThreshold() == finalOverlyingThreshold);
         }
+
+        // Try and fail to deploy WaymontSafeTimelockedRecoveryModule with a short signing timelock (< 15 minutes)
+        vm.expectRevert("The Safe does not have this Waymont module enabled.");
+        timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
+            safeInstance,
+            moduleCreationParams.recoverySigners,
+            moduleCreationParams.recoveryThreshold,
+            14 minutes,
+            moduleCreationParams.requirePolicyGuardianForRecovery,
+            deploymentNonce
+        );
 
         // Deploy WaymontSafeTimelockedRecoveryModule
         timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
@@ -358,6 +384,8 @@ contract WaymontSafeFactoryTest is Test {
     function testDisablePolicyGuardianPermanently() public {
         // Disable the policy guardian permanently
         vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianDisabledGlobally(true);
         policyGuardianSigner.disablePolicyGuardianPermanently();
         assert(policyGuardianSigner.policyGuardianPermanentlyDisabled());
         assert(policyGuardianSigner.policyGuardian() == address(0));
@@ -386,6 +414,29 @@ contract WaymontSafeFactoryTest is Test {
         vm.prank(RANDOM_ADDRESS_2);
         vm.expectRevert("Sender is not the pending policy guardian manager.");
         policyGuardianSigner.acceptPolicyGuardianManager();
+    }
+
+    event PolicyGuardianDisabledGlobally(bool permanently);
+
+    function testDisablePolicyGuardianGlobally() public {
+        // Disable the policy guardian globally
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianDisabledGlobally(false);
+        policyGuardianSigner.disablePolicyGuardianGlobally();
+        assert(!policyGuardianSigner.policyGuardianPermanentlyDisabled());
+        assert(policyGuardianSigner.policyGuardian() == address(0));
+    }
+
+    function testCannotDisablePolicyGuardianGloballyIfAlreadyDisabledGlobally() public {
+        // Disable the policy guardian globally
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        policyGuardianSigner.disablePolicyGuardianGlobally();
+
+        // Fail to do it again
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectRevert("Policy guardian already disabled.");
+        policyGuardianSigner.disablePolicyGuardianGlobally();
     }
 
     function testCannotDisablePolicyGuardianPermanentlyIfAlreadyDisabledPermanently() public {
