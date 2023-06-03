@@ -165,7 +165,7 @@ contract WaymontSafeFactoryTest is Test {
         initialOverlyingSigners[0] = address(policyGuardianSigner);
         for (uint256 i = 0; i < underlyingThreshold; i++) initialOverlyingSigners[i + 1] = underlyingOwners[i];
         
-        // Deploy Safe (enabling the module simultaneously)
+        // Deploy Safe
         {
             bytes memory initializer = abi.encodeWithSelector(
                 Safe.setup.selector,
@@ -501,9 +501,8 @@ contract WaymontSafeFactoryTest is Test {
         uint256 value = 0;
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 14 minutes);
 
-        // Safe.execTransaction
-        vm.expectRevert("Policy guardian timelock must be at least 15 minutes. Call disablePolicyGuardian to disable it.");
-        _execTransaction(to, value, data);
+        // Safe.execTransaction expecting revert
+        _execTransaction(to, value, data, true, "GS013");
     }
 
     function testExecTransaction() public {
@@ -556,14 +555,10 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     function _execTransaction(address to, uint256 value, bytes memory data) internal {
-        // Standard Safe.execTransaction params
-        Enum.Operation operation = Enum.Operation.Call;
-        uint256 safeTxGas = 0;
-        uint256 baseGas = 0;
-        uint256 gasPrice = 0;
-        address gasToken = address(0);
-        address payable refundReceiver = payable(address(0));
+        _execTransaction(to, value, data, false, "");
+    }
 
+    function _execTransaction(address to, uint256 value, bytes memory data, bool expectRevert, bytes memory revertString) internal {
         // Get signature data:
         bytes memory packedOverlyingSignatures;
         {
@@ -593,7 +588,8 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Safe.execTransaction
-        safeInstance.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, packedOverlyingSignatures);
+        if (expectRevert) vm.expectRevert(revertString);
+        safeInstance.execTransaction(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
     }
 
     function testDisablePolicyGuardianWithoutPolicyGuardian() public {
@@ -813,6 +809,21 @@ contract WaymontSafeFactoryTest is Test {
         assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
         assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
         assert(!advancedSignerInstance.isOwner(JOE));
+    }
+
+    function testCannotEmitSignatureQueuedFromMaliciousModule() public {
+        // Mock call to WaymontSafeTimelockedRecoveryModule.safe at address 0xBAD
+        vm.mockCall(
+            address(0xBAD),
+            abi.encodeWithSignature("safe()"),
+            abi.encode(safeInstance)
+        );
+        assert(address(WaymontSafeTimelockedRecoveryModule(address(0xBAD)).safe()) == address(safeInstance));
+
+        // Fail to call WaymontSafeFactory.emitSignatureQueued
+        vm.prank(address(0xBAD));
+        vm.expectRevert("The Safe does not have this Waymont module enabled.");
+        waymontSafeFactory.emitSignatureQueued(JOE, 0x1234123412341234123412341234123412341234123412341234123412341234);
     }
 
     function sampleWalletOnlyFunction(uint256 arg) public payable {
