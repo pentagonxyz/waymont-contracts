@@ -503,7 +503,7 @@ contract WaymontSafeFactoryTest is Test {
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
         bytes memory userSignature2 = abi.encodePacked(r, s, v + 4);
 
-        // Generate overlying policy guardian smart contract signature (to execute disabling)
+        // Generate overlying policy guardian smart contract signature (used both to queue disabling and to execute disabling)
         bytes memory policyGuardianOverlyingSignaturePointer = abi.encodePacked(
             bytes32(uint256(uint160(address(policyGuardianSigner)))),
             uint256(2 * 65),
@@ -514,10 +514,10 @@ contract WaymontSafeFactoryTest is Test {
             hex'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
         );
 
-        // Pack user signatures
+        // Pack user signatures (to queue disabling)
         bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-        // Generate overlying WaymontSafeAdvancedSigner signature
+        // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
         bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
             bytes32(uint256(uint160(address(advancedSignerInstance)))),
             uint256((65 * 2) + 32 + 65),
@@ -528,7 +528,7 @@ contract WaymontSafeFactoryTest is Test {
             packedUserSignatures
         );
 
-        // Pack all overlying signatures (in correct order)
+        // Pack all overlying signatures in correct order (to queue disabling)
         bytes memory packedOverlyingSignaturesForQueueing;
 
         if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
@@ -563,7 +563,48 @@ contract WaymontSafeFactoryTest is Test {
             packedUserSignatures
         );
 
-        // Pack all overlying signatures (in correct order)
+        {
+            // Pack all overlying signatures in correct order (to execute disabling)
+            bytes memory packedOverlyingSignatures;
+
+            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            } else {
+                packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            }
+
+            // Fail to disable the policy guardian since not yet queued
+            vm.expectRevert("Action not queued.");
+            policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
+        }
+
+        // Queue the disabling of the policy guardian
+        policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedOverlyingSignaturesForQueueing);
+        assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
+        assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == block.timestamp);
+
+        // AGAIN WITH NEW NONCE: Generate underlying hash + overlying signed data (to execute disabling)
+        underlyingHash = keccak256(abi.encode(DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
+        txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
+
+        // AGAIN WITH NEW NONCE: Generate user signing device signature #1 (to execute disabling)
+        (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
+        userSignature1 = abi.encodePacked(r, s, v);
+
+        // AGAIN WITH NEW NONCE: Generate user signing device signature #2 (to execute disabling)
+        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        userSignature2 = abi.encodePacked(r, s, v + 4);
+
+        // AGAIN WITH NEW NONCE: Pack user signatures
+        packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+
+        // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeAdvancedSigner signature
+        advancedSignerOverlyingSignatureData = abi.encodePacked(
+            uint256(65 * 2),
+            packedUserSignatures
+        );
+
+        // AGAIN WITH NEW NONCE: Pack all overlying signatures in correct order (to execute disabling)
         bytes memory packedOverlyingSignatures;
 
         if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
@@ -572,17 +613,8 @@ contract WaymontSafeFactoryTest is Test {
             packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
         }
 
-        // Fail to disable the policy guardian since not yet queued
-        vm.expectRevert("Action not queued.");
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
-
-        // Queue the disabling of the policy guardian
-        policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedOverlyingSignaturesForQueueing);
-        assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
-        assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == block.timestamp);
-
         // Wait almost for the timelock to pass
-        vm.warp(block.timestamp + 3 days - 1 seconds);
+        vm.warp(block.timestamp + 14 days - 1 seconds);
 
         // Fail to disable the policy guardian
         vm.expectRevert("Timelock not satisfied.");
