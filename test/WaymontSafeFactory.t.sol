@@ -125,7 +125,7 @@ contract WaymontSafeFactoryTest is Test {
         bool requirePolicyGuardianForRecovery;
     }
 
-    function _packSignaturesOrderedBySigner(bytes[] memory signatures, address[] memory signers) internal returns (bytes memory packedOrderedSignatures) {
+    function _packSignaturesOrderedBySigner(bytes[] memory signatures, address[] memory signers) internal pure returns (bytes memory packedOrderedSignatures) {
         assert(signatures.length == signers.length);
         assert(signatures.length > 0);
         if (signatures.length == 1) return signatures[0];
@@ -605,12 +605,12 @@ contract WaymontSafeFactoryTest is Test {
         );
 
         // AGAIN WITH NEW NONCE: Pack all overlying signatures in correct order (to execute disabling)
-        bytes memory packedOverlyingSignatures;
+        bytes memory packedOverlyingSignatures2;
 
         if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-            packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            packedOverlyingSignatures2 = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
         } else {
-            packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            packedOverlyingSignatures2 = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
         }
 
         // Wait almost for the timelock to pass
@@ -618,13 +618,13 @@ contract WaymontSafeFactoryTest is Test {
 
         // Fail to disable the policy guardian
         vm.expectRevert("Timelock not satisfied.");
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
 
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
 
         // Disable the policy guardian
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures);
+        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
     }
