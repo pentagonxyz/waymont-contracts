@@ -502,7 +502,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 14 minutes);
 
         // Safe.execTransaction expecting revert
-        _execTransaction(to, value, data, true, "GS013");
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false));
     }
 
     function testExecTransaction() public {
@@ -513,6 +513,11 @@ contract WaymontSafeFactoryTest is Test {
         address to = address(this);
         uint256 value = 1337;
         bytes memory data = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
+
+        // Safe.execTransaction expecting revert
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, true, false));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, true));
 
         // Safe.execTransaction
         _execTransaction(to, value, data);
@@ -554,16 +559,22 @@ contract WaymontSafeFactoryTest is Test {
         );
     }
 
-    function _execTransaction(address to, uint256 value, bytes memory data) internal {
-        _execTransaction(to, value, data, false, "");
+    struct TestExecTransactionOptions {
+        bool expectRevert;
+        bool testInvalidUserSignature;
+        bool testInvalidPolicyGuardianSignature;
+        bool testShortPolicyGuardianSignature;
     }
 
-    function _execTransaction(address to, uint256 value, bytes memory data, bool expectRevert, bytes memory revertString) internal {
+    function _execTransaction(address to, uint256 value, bytes memory data, TestExecTransactionOptions memory options) internal {
         // Get signature data:
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
             (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, 1);
+            if (options.testInvalidUserSignature) userSignature1[50] = userSignature1[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+            else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+            else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
             // Pack user signatures
             bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
@@ -588,8 +599,15 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Safe.execTransaction
-        if (expectRevert) vm.expectRevert(revertString);
+        if (options.testInvalidUserSignature) vm.expectRevert("GS026");
+        else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
+        else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
+        else if (options.expectRevert) vm.expectRevert("GS013");
         safeInstance.execTransaction(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
+    }
+
+    function _execTransaction(address to, uint256 value, bytes memory data) internal {
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false));
     }
 
     function testDisablePolicyGuardianWithoutPolicyGuardian() public {
