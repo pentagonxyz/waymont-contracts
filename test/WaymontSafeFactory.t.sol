@@ -660,8 +660,17 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     event DisablePolicyGuardianQueued(Safe indexed safe);
+    event DisablePolicyGuardianUnqueued(Safe indexed safe);
 
     function testDisablePolicyGuardianWithoutPolicyGuardian() public {
+        _testDisablePolicyGuardianWithoutPolicyGuardian(false);
+    }
+
+    function testUnqueueDisablePolicyGuardiann() public {
+        _testDisablePolicyGuardianWithoutPolicyGuardian(true);
+    }
+
+    function _testDisablePolicyGuardianWithoutPolicyGuardian(bool testUnqueueingInstead) internal {
         // Generate underlying hash + overlying signed data (to queue disabling)
         uint256 signerNonce = policyGuardianSigner.nonces(safeInstance);
         bytes32 underlyingHash = keccak256(abi.encode(QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
@@ -757,6 +766,46 @@ contract WaymontSafeFactoryTest is Test {
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == block.timestamp);
 
+        // If testing unqueueing
+        if (testUnqueueingInstead) {
+            // Generate underlying hash + overlying signed data (to queue disabling)
+            underlyingHash = keccak256(abi.encode(UNQUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
+            txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
+
+            // Generate user signing device signature #1 (to queue disabling)
+            (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
+            userSignature1 = abi.encodePacked(r, s, v);
+
+            // Generate user signing device signature #2 (to queue disabling)
+            (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+            userSignature2 = abi.encodePacked(r, s, v + 4);
+
+            // Pack user signatures (to queue disabling)
+            packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+
+            // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
+            advancedSignerOverlyingSignatureData = abi.encodePacked(
+                uint256(65 * 2),
+                packedUserSignatures
+            );
+
+            // Pack all overlying signatures in correct order (to queue disabling)
+            bytes memory packedOverlyingSignaturesForUnqueueing;
+
+            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            } else {
+                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            }
+
+            // Unqueue the disabling of the policy guardian
+            vm.expectEmit(true, false, false, false, address(policyGuardianSigner));
+            emit DisablePolicyGuardianUnqueued(safeInstance);
+            policyGuardianSigner.unqueueDisablePolicyGuardian(safeInstance, packedOverlyingSignaturesForUnqueueing);
+            assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
+            assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == 0);
+        }
+
         // AGAIN WITH NEW NONCE: Generate underlying hash + overlying signed data (to execute disabling)
         underlyingHash = keccak256(abi.encode(DISABLE_POLICY_GUARDIAN_TYPEHASH, safeInstance, signerNonce));
         txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
@@ -790,19 +839,28 @@ contract WaymontSafeFactoryTest is Test {
         // Wait almost for the timelock to pass
         vm.warp(block.timestamp + 14 days - 1 seconds);
 
-        // Fail to disable the policy guardian
-        vm.expectRevert("Timelock not satisfied.");
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
+        // Only run the following negative test if we aren't testing unqueueing
+        if (!testUnqueueingInstead) {
+            // Fail to disable the policy guardian
+            vm.expectRevert("Timelock not satisfied.");
+            policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
+        }
 
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
 
-        // Disable the policy guardian
-        vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
-        emit PolicyGuardianDisabledOnSafe(safeInstance, true);
-        policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
-        assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
-        assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
+        // Expect success unless testUnqueueingInstead
+        if (testUnqueueingInstead) {
+            vm.expectRevert("Action not queued.");
+            policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
+        } else {
+            // Disable the policy guardian
+            vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+            emit PolicyGuardianDisabledOnSafe(safeInstance, true);
+            policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
+            assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
+            assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
+        }
     }
 
     function testSocialRecovery() public {
