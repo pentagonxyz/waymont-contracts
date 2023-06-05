@@ -666,7 +666,7 @@ contract WaymontSafeFactoryTest is Test {
         _testDisablePolicyGuardianWithoutPolicyGuardian(false);
     }
 
-    function testUnqueueDisablePolicyGuardiann() public {
+    function testUnqueueDisablePolicyGuardian() public {
         _testDisablePolicyGuardianWithoutPolicyGuardian(true);
     }
 
