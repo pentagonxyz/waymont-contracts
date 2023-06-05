@@ -213,7 +213,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, 0, data, operation, 2);
+            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, 0, data, operation, 2, false);
 
             // Order and pack all overlying signatures
             address[] memory signers = new address[](3);
@@ -440,7 +440,19 @@ contract WaymontSafeFactoryTest is Test {
     event SecondaryPolicyGuardianChanged(address _policyGuardian);
 
     function testSetSecondaryPolicyGuardian() public {
-        // Set the policy guardian to a random address (checking events)
+        // Set the secondary policy guardian (checking events)
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit SecondaryPolicyGuardianChanged(SECONDARY_POLICY_GUARDIAN);
+        policyGuardianSigner.setSecondaryPolicyGuardian(SECONDARY_POLICY_GUARDIAN);
+        assert(policyGuardianSigner.secondaryPolicyGuardian() == SECONDARY_POLICY_GUARDIAN);
+    }
+
+    function testSetSecondaryPolicyGuardianTwice() public {
+        // Set the secondary policy guardian once
+        testSetSecondaryPolicyGuardian();
+
+        // Set the secondary policy guardian again but to a random address (checking events)
         vm.prank(POLICY_GUARDIAN_MANAGER);
         vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
         emit SecondaryPolicyGuardianChanged(RANDOM_ADDRESS);
@@ -537,7 +549,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.disablePolicyGuardian.selector);
 
         // Safe.execTransaction
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, true, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, true, false, 0));
 
         // Assert TX succeeded
         assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
@@ -550,7 +562,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 7 days);
 
         // Safe.execTransaction
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, true, 7 days));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, true, 7 days));
 
         // Assert TX succeeded
         assert(policyGuardianSigner.getPolicyGuardianTimelock(safeInstance) == 7 days);
@@ -564,7 +576,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 14 minutes);
 
         // Safe.execTransaction expecting revert
-        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, false, 0));
     }
 
     function testExecTransaction() public {
@@ -577,9 +589,9 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
 
         // Safe.execTransaction expecting revert
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, 0));
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, true, false, false, false, 0));
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, true, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, true, false, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, true, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, true, false, false, 0));
 
         // Safe.execTransaction
         _execTransaction(to, value, data);
@@ -588,7 +600,38 @@ contract WaymontSafeFactoryTest is Test {
         assert(dummy == 22222222);
     }
 
-    function _getUserSignaturesAndOverlyingPolicyGuardianSignature(address to, uint256 value, bytes memory data, Enum.Operation operation, uint256 overlyingSignaturesBeforePolicyGuardian) internal view returns (
+    function testExecTransactionUsingSecondaryPolicyGuardian() public {
+        // Set the secondary policy guardian
+        testSetSecondaryPolicyGuardian();
+
+        // Send ETH to Safe
+        vm.deal(address(safeInstance), 1337);
+
+        // Transaction params
+        address to = address(this);
+        uint256 value = 1337;
+        bytes memory data = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
+
+        // Safe.execTransaction expecting revert
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, true, false, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, true, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false, true, false, false, 0));
+
+        // Safe.execTransaction
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false, false, false, false, 0));
+
+        // Assert TX succeeded
+        assert(dummy == 22222222);
+    }
+
+    function _getUserSignaturesAndOverlyingPolicyGuardianSignature(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 overlyingSignaturesBeforePolicyGuardian,
+        bool useSecondaryPolicyGuardian
+    ) internal view returns (
         bytes memory userSignature1,
         bytes memory userSignature2,
         bytes memory policyGuardianOverlyingSignaturePointer,
@@ -606,7 +649,7 @@ contract WaymontSafeFactoryTest is Test {
         userSignature2 = abi.encodePacked(r, s, v + 4);
 
         // Generate underlying/actual policy guardian signature
-        (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, txHash);
+        (v, r, s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
         bytes memory policyGuardianUnderlyingSignature = abi.encodePacked(r, s, v);
 
         // Generate overlying policy guardian smart contract signature
@@ -625,6 +668,7 @@ contract WaymontSafeFactoryTest is Test {
     event PolicyGuardianTimelockChanged(Safe indexed safe, uint256 policyGuardianTimelock);
 
     struct TestExecTransactionOptions {
+        bool useSecondaryPolicyGuardian;
         bool expectRevert;
         bool testInvalidUserSignature;
         bool testInvalidPolicyGuardianSignature;
@@ -639,7 +683,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, Enum.Operation.Call, 1);
+            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
             if (options.testInvalidUserSignature) userSignature1[50] = userSignature1[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
@@ -682,7 +726,7 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     function _execTransaction(address to, uint256 value, bytes memory data) internal {
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
     }
 
     event DisablePolicyGuardianQueued(Safe indexed safe);
