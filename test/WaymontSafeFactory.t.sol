@@ -406,6 +406,15 @@ contract WaymontSafeFactoryTest is Test {
         assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
     }
 
+    function testSetPolicyGuardian() public {
+        // Set the policy guardian to a random address (checking events)
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianChanged(RANDOM_ADDRESS);
+        policyGuardianSigner.setPolicyGuardian(RANDOM_ADDRESS);
+        assert(policyGuardianSigner.policyGuardian() == RANDOM_ADDRESS);
+    }
+
     function testCannotSetPolicyGuardianIfNotManager() public {
         // Fail to set the policy guardian to a random address
         vm.expectRevert("Sender is not the policy guardian manager.");
@@ -426,6 +435,23 @@ contract WaymontSafeFactoryTest is Test {
         vm.prank(POLICY_GUARDIAN_MANAGER);
         vm.expectRevert("Policy guardian has been permanently disabled.");
         policyGuardianSigner.setPolicyGuardian(RANDOM_ADDRESS);
+    }
+
+    event SecondaryPolicyGuardianChanged(address _policyGuardian);
+
+    function testSetSecondaryPolicyGuardian() public {
+        // Set the policy guardian to a random address (checking events)
+        vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit SecondaryPolicyGuardianChanged(RANDOM_ADDRESS);
+        policyGuardianSigner.setSecondaryPolicyGuardian(RANDOM_ADDRESS);
+        assert(policyGuardianSigner.secondaryPolicyGuardian() == RANDOM_ADDRESS);
+    }
+
+    function testCannotSetSecondaryPolicyGuardianIfNotManager() public {
+        // Fail to set the secondary policy guardian to a random address
+        vm.expectRevert("Sender is not the policy guardian manager.");
+        policyGuardianSigner.setSecondaryPolicyGuardian(RANDOM_ADDRESS);
     }
 
     function testDisablePolicyGuardianPermanently() public {
