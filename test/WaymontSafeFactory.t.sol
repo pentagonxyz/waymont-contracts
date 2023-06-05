@@ -253,7 +253,7 @@ contract WaymontSafeFactoryTest is Test {
 
                 // Remove extra signer(s) from Safe (only 1 in this case)
                 to = address(safeInstance);
-                data = abi.encodeWithSelector(safeInstance.removeOwner.selector, address(advancedSignerInstance), initialOverlyingSigners[2], finalOverlyingThreshold);
+                data = abi.encodeWithSelector(safeInstance.removeOwner.selector, predictedAdvancedSignerInstanceAddress, initialOverlyingSigners[2], finalOverlyingThreshold);
                 multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
 
                 // Enable WaymontSafeTimelockedRecoveryModule on the Safe
