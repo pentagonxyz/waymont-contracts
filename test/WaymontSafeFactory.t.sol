@@ -160,7 +160,8 @@ contract WaymontSafeFactoryTest is Test {
         address[] memory initialOverlyingSigners,
         address predictedAdvancedSignerInstanceAddress,
         address predictedTimelockedRecoveryModuleInstanceAddress,
-        uint256 deploymentNonce
+        uint256 deploymentNonce,
+        bool expectRevert
     ) internal {
         // Get Safe.execTransaction params
         address to;
@@ -227,6 +228,7 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Safe.execTransaction
+        if (expectRevert) vm.expectRevert("GS013");
         safeInstance.execTransaction(to, 0, data, operation, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
     }
 
@@ -313,6 +315,39 @@ contract WaymontSafeFactoryTest is Test {
             deploymentNonce
         );
 
+        // Try and fail to deploy WaymontSafeTimelockedRecoveryModule with a bad config
+        moduleCreationParams.recoveryThreshold = 3;
+        _execInitialConfigOnSafe(
+            underlyingOwners,
+            underlyingThreshold,
+            moduleCreationParams,
+            initialOverlyingSigners,
+            predictedAdvancedSignerInstanceAddress,
+            predictedTimelockedRecoveryModuleInstanceAddress,
+            deploymentNonce,
+            true
+        );
+        moduleCreationParams.recoveryThreshold = 2;
+
+        // Try and fail to deploy WaymontSafeTimelockedRecoveryModule with a bad signing timelock
+        moduleCreationParams.recoverySigningTimelock = 14 minutes;
+        address badPredictedTimelockedRecoveryModuleInstanceAddress;
+        {
+            bytes32 salt = keccak256(abi.encode(safeInstance, moduleCreationParams.recoverySigners, moduleCreationParams.recoveryThreshold, 14 minutes, moduleCreationParams.requirePolicyGuardianForRecovery, deploymentNonce));
+            badPredictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(waymontSafeFactory));
+        }
+        _execInitialConfigOnSafe(
+            underlyingOwners,
+            underlyingThreshold,
+            moduleCreationParams,
+            initialOverlyingSigners,
+            predictedAdvancedSignerInstanceAddress,
+            badPredictedTimelockedRecoveryModuleInstanceAddress,
+            deploymentNonce,
+            true
+        );
+        moduleCreationParams.recoverySigningTimelock = 3 days;
+
         // Use Safe.execTransaction to call MultiSend.multiSend to add WaymontSafeAdvancedSigner to the Safe as a signer using Safe.swapOwner, remove the extra signer(s) from the Safe with Safe.removeOwner, enable the WaymontSafeTimelockedRecoveryModule on the Safe, deploy the WaymontSafeAdvancedSigner, and deploy the WaymontSafeTimelockedRecoveryModule
         _execInitialConfigOnSafe(
             underlyingOwners,
@@ -321,7 +356,8 @@ contract WaymontSafeFactoryTest is Test {
             initialOverlyingSigners,
             predictedAdvancedSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
-            deploymentNonce
+            deploymentNonce,
+            false
         );
 
         // Set WaymontSafeAdvancedSigner
