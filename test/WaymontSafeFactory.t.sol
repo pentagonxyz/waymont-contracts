@@ -438,14 +438,21 @@ contract WaymontSafeFactoryTest is Test {
         assert(policyGuardianSigner.policyGuardian() == address(0));
     }
 
+    event PolicyGuardianManagerChanged(address _policyGuardianManager);
+    event PendingPolicyGuardianManagerChanged(address _pendingPolicyGuardianManager);
+
     function testSetPolicyGuardianManager() public {
         // Call setPendingPolicyGuardianManager
         vm.prank(POLICY_GUARDIAN_MANAGER);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PendingPolicyGuardianManagerChanged(RANDOM_ADDRESS);
         policyGuardianSigner.setPendingPolicyGuardianManager(RANDOM_ADDRESS);
         assert(policyGuardianSigner.pendingPolicyGuardianManager() == RANDOM_ADDRESS);
 
         // Call acceptPolicyGuardianManager
         vm.prank(RANDOM_ADDRESS);
+        vm.expectEmit(false, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianManagerChanged(RANDOM_ADDRESS);
         policyGuardianSigner.acceptPolicyGuardianManager();
         assert(policyGuardianSigner.policyGuardianManager() == RANDOM_ADDRESS);
         assert(policyGuardianSigner.pendingPolicyGuardianManager() == address(0));
@@ -504,7 +511,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.disablePolicyGuardian.selector);
 
         // Safe.execTransaction
-        _execTransaction(to, value, data);
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, true, false, 0));
 
         // Assert TX succeeded
         assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
@@ -517,7 +524,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 7 days);
 
         // Safe.execTransaction
-        _execTransaction(to, value, data);
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, true, 7 days));
 
         // Assert TX succeeded
         assert(policyGuardianSigner.getPolicyGuardianTimelock(safeInstance) == 7 days);
@@ -531,7 +538,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 14 minutes);
 
         // Safe.execTransaction expecting revert
-        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false));
+        _execTransaction(to, value, data, TestExecTransactionOptions(true, false, false, false, false, false, 0));
     }
 
     function testExecTransaction() public {
@@ -544,9 +551,9 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
 
         // Safe.execTransaction expecting revert
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false));
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, true, false));
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, true));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, true, false, false, false, 0));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, true, false, false, 0));
 
         // Safe.execTransaction
         _execTransaction(to, value, data);
@@ -588,11 +595,17 @@ contract WaymontSafeFactoryTest is Test {
         );
     }
 
+    event PolicyGuardianDisabledOnSafe(Safe indexed safe, bool withoutPolicyGuardian);
+    event PolicyGuardianTimelockChanged(Safe indexed safe, uint256 policyGuardianTimelock);
+
     struct TestExecTransactionOptions {
         bool expectRevert;
         bool testInvalidUserSignature;
         bool testInvalidPolicyGuardianSignature;
         bool testShortPolicyGuardianSignature;
+        bool expectEmitPolicyGuardianDisabledOnSafe;
+        bool expectEmitPolicyGuardianTimelockChanged;
+        uint256 newPolicyGuardianTimelock;
     }
 
     function _execTransaction(address to, uint256 value, bytes memory data, TestExecTransactionOptions memory options) internal {
@@ -632,12 +645,21 @@ contract WaymontSafeFactoryTest is Test {
         else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
         else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
         else if (options.expectRevert) vm.expectRevert("GS013");
+        else if (options.expectEmitPolicyGuardianDisabledOnSafe) {
+            vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+            emit PolicyGuardianDisabledOnSafe(safeInstance, false);
+        } else if (options.expectEmitPolicyGuardianTimelockChanged) {
+            vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+            emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
+        }
         safeInstance.execTransaction(to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
     }
 
     function _execTransaction(address to, uint256 value, bytes memory data) internal {
-        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false));
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, 0));
     }
+
+    event DisablePolicyGuardianQueued(Safe indexed safe);
 
     function testDisablePolicyGuardianWithoutPolicyGuardian() public {
         // Generate underlying hash + overlying signed data (to queue disabling)
@@ -729,6 +751,8 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Queue the disabling of the policy guardian
+        vm.expectEmit(true, false, false, false, address(policyGuardianSigner));
+        emit DisablePolicyGuardianQueued(safeInstance);
         policyGuardianSigner.queueDisablePolicyGuardian(safeInstance, packedOverlyingSignaturesForQueueing);
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.disablePolicyGuardianQueueTimestamps(safeInstance) == block.timestamp);
@@ -774,6 +798,8 @@ contract WaymontSafeFactoryTest is Test {
         vm.warp(block.timestamp + 1 seconds);
 
         // Disable the policy guardian
+        vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+        emit PolicyGuardianDisabledOnSafe(safeInstance, true);
         policyGuardianSigner.disablePolicyGuardianWithoutPolicyGuardian(safeInstance, packedOverlyingSignatures2);
         assert(policyGuardianSigner.nonces(safeInstance) == ++signerNonce);
         assert(policyGuardianSigner.policyGuardianDisabled(safeInstance));
