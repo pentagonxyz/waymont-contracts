@@ -236,7 +236,7 @@ contract WaymontSafeFactoryTest is Test {
             deploymentNonce
         );
 
-        // Safe.execTransaction to use MultiSend to add WaymontSafeAdvancedSigner to Safe as signer using Safe.swapOwner and remove extra signer(s) from the Safe
+        // Use Safe.execTransaction to call MultiSend.multiSend to add WaymontSafeAdvancedSigner to the Safe as a signer using Safe.swapOwner, remove the extra signer(s) from the Safe with Safe.removeOwner, enable the WaymontSafeTimelockedRecoveryModule on the Safe, deploy the WaymontSafeAdvancedSigner, and deploy the WaymontSafeTimelockedRecoveryModule
         {
             // Get Safe.execTransaction params
             address to;
@@ -306,7 +306,7 @@ contract WaymontSafeFactoryTest is Test {
             safeInstance.execTransaction(to, 0, data, operation, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures);
         }
 
-        // Deploy WaymontSafeAdvancedSigner (now that it has been added to the Safe)
+        // Set WaymontSafeAdvancedSigner
         advancedSignerInstance = WaymontSafeAdvancedSigner(predictedAdvancedSignerInstanceAddress);
 
         // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
@@ -329,8 +329,18 @@ contract WaymontSafeFactoryTest is Test {
             assert(safeInstance.getThreshold() == 2);
         }
 
-        // Deploy WaymontSafeTimelockedRecoveryModule
+        // Set WaymontSafeTimelockedRecoveryModule
         timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(predictedTimelockedRecoveryModuleInstanceAddress);
+
+        // Try and fail to re-initialize the WaymontSafeTimelockedRecoveryModule instance
+        vm.expectRevert("GS200");
+        timelockedRecoveryModuleInstance.initialize(
+            safeInstance,
+            moduleCreationParams.recoverySigners,
+            moduleCreationParams.recoveryThreshold,
+            moduleCreationParams.recoverySigningTimelock,
+            policyGuardianSigner
+        );
 
         // Assert deployed correctly
         assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
