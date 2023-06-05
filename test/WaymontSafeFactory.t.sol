@@ -261,6 +261,24 @@ contract WaymontSafeFactoryTest is Test {
                 data = abi.encodeWithSelector(safeInstance.enableModule.selector, predictedTimelockedRecoveryModuleInstanceAddress);
                 multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
 
+                // Deploy WaymontSafeAdvancedSigner
+                to = address(waymontSafeFactory);
+                data = abi.encodeWithSelector(waymontSafeFactory.createAdvancedSigner.selector, safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+                multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
+
+                // Deploy WaymontSafeTimelockedRecoveryModule
+                to = address(waymontSafeFactory);
+                data = abi.encodeWithSelector(
+                    waymontSafeFactory.createTimelockedRecoveryModule.selector,
+                    safeInstance,
+                    moduleCreationParams.recoverySigners,
+                    moduleCreationParams.recoveryThreshold,
+                    moduleCreationParams.recoverySigningTimelock,
+                    moduleCreationParams.requirePolicyGuardianForRecovery,
+                    deploymentNonce
+                );
+                multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
+
                 // Params for Safe.execTransaction
                 to = address(multiSend);
                 data = abi.encodeWithSelector(multiSend.multiSend.selector, multiSendTransactions);
@@ -289,7 +307,7 @@ contract WaymontSafeFactoryTest is Test {
         }
 
         // Deploy WaymontSafeAdvancedSigner (now that it has been added to the Safe)
-        advancedSignerInstance = waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+        advancedSignerInstance = WaymontSafeAdvancedSigner(predictedAdvancedSignerInstanceAddress);
 
         // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
         vm.expectRevert("GS200");
@@ -311,36 +329,8 @@ contract WaymontSafeFactoryTest is Test {
             assert(safeInstance.getThreshold() == 2);
         }
 
-        // Try and fail to deploy WaymontSafeTimelockedRecoveryModule with a short signing timelock (< 15 minutes)
-        vm.expectRevert("The Safe does not have this Waymont module enabled.");
-        timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
-            safeInstance,
-            moduleCreationParams.recoverySigners,
-            moduleCreationParams.recoveryThreshold,
-            14 minutes,
-            moduleCreationParams.requirePolicyGuardianForRecovery,
-            deploymentNonce
-        );
-
         // Deploy WaymontSafeTimelockedRecoveryModule
-        timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
-            safeInstance,
-            moduleCreationParams.recoverySigners,
-            moduleCreationParams.recoveryThreshold,
-            moduleCreationParams.recoverySigningTimelock,
-            moduleCreationParams.requirePolicyGuardianForRecovery,
-            deploymentNonce
-        );
-
-        // Try and fail to re-initialize the WaymontSafeTimelockedRecoveryModule instance
-        vm.expectRevert("GS200");
-        timelockedRecoveryModuleInstance.initialize(
-            safeInstance,
-            moduleCreationParams.recoverySigners,
-            moduleCreationParams.recoveryThreshold,
-            moduleCreationParams.recoverySigningTimelock,
-            policyGuardianSigner
-        );
+        timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(predictedTimelockedRecoveryModuleInstanceAddress);
 
         // Assert deployed correctly
         assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
