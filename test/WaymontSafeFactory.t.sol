@@ -363,10 +363,6 @@ contract WaymontSafeFactoryTest is Test {
         // Set WaymontSafeAdvancedSigner
         advancedSignerInstance = WaymontSafeAdvancedSigner(predictedAdvancedSignerInstanceAddress);
 
-        // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
-        vm.expectRevert("GS200");
-        advancedSignerInstance.initialize(safeInstance, underlyingOwners, underlyingThreshold);
-
         // Assert WaymontSafeAdvancedSigner deployed correctly
         assert(address(advancedSignerInstance) == predictedAdvancedSignerInstanceAddress);
         for (uint256 i = 0; i < underlyingOwners.length; i++) assert(advancedSignerInstance.isOwner(underlyingOwners[i]));
@@ -386,6 +382,45 @@ contract WaymontSafeFactoryTest is Test {
         // Set WaymontSafeTimelockedRecoveryModule
         timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(predictedTimelockedRecoveryModuleInstanceAddress);
 
+        // Assert deployed correctly
+        assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
+        assert(address(advancedSignerInstance.safe()) == address(safeInstance));
+        for (uint256 i = 0; i < moduleCreationParams.recoverySigners.length; i++) assert(timelockedRecoveryModuleInstance.isOwner(moduleCreationParams.recoverySigners[i]));
+        assert(advancedSignerInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
+        assert(timelockedRecoveryModuleInstance.signingTimelock() == moduleCreationParams.recoverySigningTimelock);
+        assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
+        assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
+    }
+
+    function testCannotReinitializeAdvancedSigner() public {
+        // WaymontSafeAdvancedSigner params
+        address[] memory underlyingOwners = new address[](3);
+        underlyingOwners[0] = ALICE;
+        underlyingOwners[1] = BOB;
+        underlyingOwners[2] = JOE;
+        uint256 underlyingThreshold = 2;
+
+        // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
+        vm.expectRevert("GS200");
+        advancedSignerInstance.initialize(safeInstance, underlyingOwners, underlyingThreshold);
+    }
+
+    function testCannotReinitializeTimelockedRecoveryModule() public {
+        // WaymontSafeTimelockedRecoveryModule params (use same deploymentNonce)
+        CreateTimelockedRecoveryModuleParams memory moduleCreationParams;
+        {
+            address[] memory recoverySigners = new address[](3);
+            recoverySigners[0] = FRIEND_ONE;
+            recoverySigners[1] = FRIEND_TWO;
+            recoverySigners[2] = FRIEND_THREE;
+            moduleCreationParams = CreateTimelockedRecoveryModuleParams({
+                recoverySigners: recoverySigners,
+                recoveryThreshold: 2,
+                recoverySigningTimelock: 3 days,
+                requirePolicyGuardianForRecovery: true
+            });
+        }
+
         // Try and fail to re-initialize the WaymontSafeTimelockedRecoveryModule instance
         vm.expectRevert("GS200");
         timelockedRecoveryModuleInstance.initialize(
@@ -395,15 +430,6 @@ contract WaymontSafeFactoryTest is Test {
             moduleCreationParams.recoverySigningTimelock,
             policyGuardianSigner
         );
-
-        // Assert deployed correctly
-        assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
-        assert(address(advancedSignerInstance.safe()) == address(safeInstance));
-        for (uint256 i = 0; i < moduleCreationParams.recoverySigners.length; i++) assert(timelockedRecoveryModuleInstance.isOwner(moduleCreationParams.recoverySigners[i]));
-        assert(advancedSignerInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
-        assert(timelockedRecoveryModuleInstance.signingTimelock() == moduleCreationParams.recoverySigningTimelock);
-        assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
-        assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
     }
 
     function testSetPolicyGuardian() public {
