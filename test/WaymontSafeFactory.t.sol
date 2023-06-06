@@ -694,7 +694,7 @@ contract WaymontSafeFactoryTest is Test {
             // Generate overlying WaymontSafeAdvancedSigner signature
             bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
                 bytes32(uint256(uint160(address(advancedSignerInstance)))),
-                uint256((65 * 2) + 32 + 65),
+                uint256((65 * 2) + 32 + (options.testShortPolicyGuardianSignature ? 64 : 65)),
                 uint8(0)
             );
             bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
