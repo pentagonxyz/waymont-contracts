@@ -108,7 +108,6 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     }
 
     /// @notice Event emitted when a signature is queued.
-    /// Only contains the signer as a parameter because that is all that is needed to know if an extra signature was queued and which signer it was from (so that signer can be removed).
     event SignatureQueued(address signer, bytes32 signedDataHash);
 
     /// @notice Queues a timelocked signature.
