@@ -96,12 +96,12 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         }
 
         // Execute transaction
-        safe.execTransactionFromModule(
+        require(safe.execTransactionFromModule(
             to,
             value,
             data,
             operation
-        );
+        ), "Failed to execute transaction via Safe from module.");
     }
 
     /// @notice Event emitted when a signature is queued.

@@ -970,9 +970,17 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     function testSocialRecovery() public {
+        _testSocialRecovery(false);
+    }
+
+    function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
+        _testSocialRecovery(true);
+    }
+
+    function _testSocialRecovery(bool testRevertingUnderlyingTransaction) internal {
         // Underlying transaction params
         address to = address(advancedSignerInstance);
-        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, BOB, JOE, JOE_REPLACEMENT);
+        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
 
         // Standard params
         uint256 value = 0;
@@ -1040,12 +1048,15 @@ contract WaymontSafeFactoryTest is Test {
         vm.warp(block.timestamp + 1 seconds);
 
         // WaymontSafeTimelockedRecoveryModule.execTransaction
+        if (testRevertingUnderlyingTransaction) vm.expectRevert("Failed to execute transaction via Safe from module.");
         timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
 
         // Assert TX succeeded
-        assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
-        assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
-        assert(!advancedSignerInstance.isOwner(JOE));
+        if (!testRevertingUnderlyingTransaction) {
+            assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
+            assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
+            assert(!advancedSignerInstance.isOwner(JOE));
+        }
     }
 
     function testCannotEmitSignatureQueuedFromMaliciousModule() public {
