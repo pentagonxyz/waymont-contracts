@@ -973,14 +973,18 @@ contract WaymontSafeFactoryTest is Test {
     event ExecutionFailure(bytes32 indexed txHash);
 
     function testSocialRecovery() public {
-        _testSocialRecovery(false);
+        _testSocialRecovery(false, false);
+    }
+
+    function testCannotSocialRecoveryAfterQueuedSignaturesExpired() public {
+        _testSocialRecovery(true, false);
     }
 
     function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
-        _testSocialRecovery(true);
+        _testSocialRecovery(false, true);
     }
 
-    function _testSocialRecovery(bool testRevertingUnderlyingTransaction) internal {
+    function _testSocialRecovery(bool testExpiringQueuedSignatures, bool testRevertingUnderlyingTransaction) internal {
         // Underlying transaction params
         address to = address(advancedSignerInstance);
         bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
@@ -1050,18 +1054,27 @@ contract WaymontSafeFactoryTest is Test {
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
 
-        // WaymontSafeTimelockedRecoveryModule.execTransaction
-        vm.expectEmit(true, false, false, false, address(timelockedRecoveryModuleInstance));
-        if (testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
-        else emit ExecutionSuccess(txHash);
-        timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
+        if (testExpiringQueuedSignatures) {
+            // Wait for the signature to expire
+            vm.warp(block.timestamp + 1 weeks + 1 seconds);
 
-        // Assert TX succeeded
-        assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
+            // WaymontSafeTimelockedRecoveryModule.execTransaction
+            vm.expectRevert("Queued signatures are only usable for 1 week until they expire.");
+            timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
+        } else {
+            // WaymontSafeTimelockedRecoveryModule.execTransaction
+            vm.expectEmit(true, false, false, false, address(timelockedRecoveryModuleInstance));
+            if (testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
+            else emit ExecutionSuccess(txHash);
+            timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
 
-        if (!testRevertingUnderlyingTransaction) {
-            assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
-            assert(!advancedSignerInstance.isOwner(JOE));
+            // Assert TX succeeded
+            assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
+
+            if (!testRevertingUnderlyingTransaction) {
+                assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
+                assert(!advancedSignerInstance.isOwner(JOE));
+            }
         }
     }
 
