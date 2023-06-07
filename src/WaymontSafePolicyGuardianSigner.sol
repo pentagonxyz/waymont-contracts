@@ -22,6 +22,9 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @notice Minimum policy guardian timelock (in seconds): 15 minutes.
     uint256 public constant MIN_POLICY_GUARDIAN_TIMELOCK = 15 minutes;
 
+    /// @notice Maximum policy guardian timelock (in seconds): 180 days.
+    uint256 public constant MAX_POLICY_GUARDIAN_TIMELOCK = 180 days;
+
     /// @notice Time to expiry after a signature has been queued (in seconds): 1 week.
     uint256 public constant QUEUED_SIGNATURE_EXPIRATION = 1 weeks;
 
@@ -186,6 +189,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @param policyGuardianTimelock The desired timelock required to disable the policy guardian without the policy guardian's signature.
     function setPolicyGuardianTimelock(uint256 policyGuardianTimelock) external {
         require(policyGuardianTimelock >= MIN_POLICY_GUARDIAN_TIMELOCK, "Policy guardian timelock must be at least 15 minutes. Call disablePolicyGuardian to disable it.");
+        require(policyGuardianTimelock <= MAX_POLICY_GUARDIAN_TIMELOCK, "Policy guardian timelock cannot be more than 180 days.");
         Safe safe = Safe(payable(msg.sender));
         customPolicyGuardianTimelocks[safe] = policyGuardianTimelock;
         policyGuardianDisabled[safe] = false;

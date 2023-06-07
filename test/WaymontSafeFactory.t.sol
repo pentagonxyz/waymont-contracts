@@ -605,6 +605,16 @@ contract WaymontSafeFactoryTest is Test {
         _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, false, 0));
     }
 
+    function testCannotSetPolicyGuardianTimelockAboveMax() public {
+        // Transaction params
+        address to = address(policyGuardianSigner);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 181 days);
+
+        // Safe.execTransaction expecting revert
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, false, 0));
+    }
+
     function testExecTransaction() public {
         // Send ETH to Safe
         vm.deal(address(safeInstance), 1337);
