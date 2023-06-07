@@ -969,6 +969,9 @@ contract WaymontSafeFactoryTest is Test {
         }
     }
 
+    event ExecutionSuccess(bytes32 indexed txHash);
+    event ExecutionFailure(bytes32 indexed txHash);
+
     function testSocialRecovery() public {
         _testSocialRecovery(false);
     }
@@ -1048,12 +1051,15 @@ contract WaymontSafeFactoryTest is Test {
         vm.warp(block.timestamp + 1 seconds);
 
         // WaymontSafeTimelockedRecoveryModule.execTransaction
-        if (testRevertingUnderlyingTransaction) vm.expectRevert("Failed to execute transaction via Safe from module.");
+        vm.expectEmit(true, false, false, false, address(timelockedRecoveryModuleInstance));
+        if (testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
+        else emit ExecutionSuccess(txHash);
         timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
 
         // Assert TX succeeded
+        assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
+
         if (!testRevertingUnderlyingTransaction) {
-            assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
             assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
             assert(!advancedSignerInstance.isOwner(JOE));
         }
