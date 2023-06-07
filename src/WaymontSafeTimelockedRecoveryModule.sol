@@ -39,6 +39,12 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     /// @notice Incremental nonce to prevent signature reuse on this contract.
     uint256 public nonce;
 
+    /// @notice Event emitted when the underlying transcation succeeds in `WaymontSafeTimelockedRecoveryModule.execTransaction`.
+    event ExecutionSuccess(bytes32 indexed txHash);
+
+    /// @notice Event emitted when the underlying transcation fails in `WaymontSafeTimelockedRecoveryModule.execTransaction`.
+    event ExecutionFailure(bytes32 indexed txHash);
+
     /// @dev Initializes the contract by setting the `Safe`, signers, threshold, and signing timelock.
     /// @param _safe The `Safe` of which this signer contract will be an owner.
     /// @param signers The signers underlying this signer contract.
@@ -76,11 +82,12 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         // Generate underlying hash
         bytes32 underlyingHash = keccak256(abi.encode(EXEC_TRANSACTION_TYPEHASH, safe, nonce++, to, value, keccak256(data), operation));
 
-        // Generate overlying signed data
+        // Generate overlying signed data and hash
         bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), underlyingHash);
+        bytes32 txHash = keccak256(txHashData);
 
         // Check signatures
-        checkSignatures(keccak256(txHashData), signatures);
+        checkSignatures(txHash, signatures);
 
         // Check signature from policy guardian (if applicable)
         if (address(policyGuardianSigner) != address(0)) require(policyGuardianSigner.isValidSignature(txHashData, policyGuardianSignature) == bytes4(0x20c13b0b), "Policy guardian signature validation failed.");
@@ -96,16 +103,11 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
         }
 
         // Execute transaction
-        safe.execTransactionFromModule(
-            to,
-            value,
-            data,
-            operation
-        );
+        if (safe.execTransactionFromModule(to, value, data, operation)) emit ExecutionSuccess(txHash);
+        else emit ExecutionFailure(txHash);
     }
 
     /// @notice Event emitted when a signature is queued.
-    /// Only contains the signer as a parameter because that is all that is needed to know if an extra signature was queued and which signer it was from (so that signer can be removed).
     event SignatureQueued(address signer, bytes32 signedDataHash);
 
     /// @notice Queues a timelocked signature.

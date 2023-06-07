@@ -70,7 +70,6 @@ contract WaymontSafeFactory {
 
     /// @dev Event emitted when a signature is queued on a `Safe`.
     /// Useful for sending security notifications to `Safe` owners if the policy guardian cannot find record of itself sending the transaction hash associated with a `SignatureQueued` event.
-    /// Only contains the signer as a parameter because that is all that is needed to know if an extra signature was queued and which signer it was from (so that signer can be removed).
     /// WARNING: The function that emits this event is not access-gated (in the interest of reducing gas costs and avoiding unnecessary smart contract complexity), so make sure to check underlying `Safe` addresses for validity. If events are spammed on a chain and `eth_getLogs` times out, `Safe`s can be checked individually (in descending order of net worth on that chain).
     event SignatureQueued(Safe indexed safe, WaymontSafeTimelockedRecoveryModule indexed timelockedRecoveryModule, address indexed signer, bytes32 signedDataHash);
 

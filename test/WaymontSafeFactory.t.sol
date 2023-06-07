@@ -605,6 +605,16 @@ contract WaymontSafeFactoryTest is Test {
         _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, false, 0));
     }
 
+    function testCannotSetPolicyGuardianTimelockAboveMax() public {
+        // Transaction params
+        address to = address(policyGuardianSigner);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(policyGuardianSigner.setPolicyGuardianTimelock.selector, 181 days);
+
+        // Safe.execTransaction expecting revert
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, true, false, false, false, false, false, 0));
+    }
+
     function testExecTransaction() public {
         // Send ETH to Safe
         vm.deal(address(safeInstance), 1337);
@@ -959,10 +969,21 @@ contract WaymontSafeFactoryTest is Test {
         }
     }
 
+    event ExecutionSuccess(bytes32 indexed txHash);
+    event ExecutionFailure(bytes32 indexed txHash);
+
     function testSocialRecovery() public {
+        _testSocialRecovery(false);
+    }
+
+    function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
+        _testSocialRecovery(true);
+    }
+
+    function _testSocialRecovery(bool testRevertingUnderlyingTransaction) internal {
         // Underlying transaction params
         address to = address(advancedSignerInstance);
-        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, BOB, JOE, JOE_REPLACEMENT);
+        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
 
         // Standard params
         uint256 value = 0;
@@ -1030,12 +1051,18 @@ contract WaymontSafeFactoryTest is Test {
         vm.warp(block.timestamp + 1 seconds);
 
         // WaymontSafeTimelockedRecoveryModule.execTransaction
+        vm.expectEmit(true, false, false, false, address(timelockedRecoveryModuleInstance));
+        if (testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
+        else emit ExecutionSuccess(txHash);
         timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
 
         // Assert TX succeeded
         assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
-        assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
-        assert(!advancedSignerInstance.isOwner(JOE));
+
+        if (!testRevertingUnderlyingTransaction) {
+            assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
+            assert(!advancedSignerInstance.isOwner(JOE));
+        }
     }
 
     function testCannotEmitSignatureQueuedFromMaliciousModule() public {
