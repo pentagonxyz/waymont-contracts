@@ -1016,8 +1016,9 @@ contract WaymontSafeFactoryTest is Test {
             assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature1)) == block.timestamp);
         }
 
-        // To queue signature #2:
+        // Prep to queue signature #2 but don't queue yet:
         bytes memory friendSignature2;
+        bytes memory friend2PolicyGuardianSignature;
         {
             // Generate user signing device signature #2
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(FRIEND_TWO_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
@@ -1027,11 +1028,7 @@ contract WaymontSafeFactoryTest is Test {
             bytes32 queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, keccak256(friendSignature2)));
             bytes32 queueSignatureMsgHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), timelockedRecoveryModuleInstance.domainSeparator(), queueSignatureUnderlyingHash));
             (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, queueSignatureMsgHash);
-            bytes memory friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
-
-            // Queue signature #2
-            timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature2, friend2PolicyGuardianSignature);
-            assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature2)) == block.timestamp);
+            friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
         }
 
         // Pack friend signatures
@@ -1053,6 +1050,14 @@ contract WaymontSafeFactoryTest is Test {
 
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
+
+        // Ensure cannot execute without queueing signature #2
+        vm.expectRevert("Signature not queued.");
+        timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
+
+        // Queue signature #2
+        timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature2, friend2PolicyGuardianSignature);
+        assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature2)) == block.timestamp);
 
         if (testExpiringQueuedSignatures) {
             // Wait for the signature to expire
