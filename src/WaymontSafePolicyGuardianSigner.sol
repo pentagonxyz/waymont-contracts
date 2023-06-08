@@ -239,7 +239,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
         emit DisablePolicyGuardianUnqueued(safe);
     }
 
-    /// @notice Disable the policy guardian (by setting the timelock to 0) after the on-chain timelock has passed (without needing a signature from the policy guardian).
+    /// @notice Disable the policy guardian (by setting `policyGuardianDisabled[safe] = true`) after the on-chain timelock has passed (without needing a signature from the policy guardian).
     /// Requires that the user waits for the old timelock to pass (after calling `queueAction`).
     /// @param signatures Signatures from `threshold - 1` signers (excluding the policy guardian).
     function disablePolicyGuardianWithoutPolicyGuardian(Safe safe, bytes calldata signatures) external {
