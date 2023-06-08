@@ -973,18 +973,22 @@ contract WaymontSafeFactoryTest is Test {
     event ExecutionFailure(bytes32 indexed txHash);
 
     function testSocialRecovery() public {
-        _testSocialRecovery(false, false);
+        _testSocialRecovery(false, false, false);
+    }
+
+    function testCannotSocialRecoveryIfNotAllSignaturesAreQueued() public {
+        _testSocialRecovery(true, false, false);
     }
 
     function testCannotSocialRecoveryAfterQueuedSignaturesExpired() public {
-        _testSocialRecovery(true, false);
+        _testSocialRecovery(false, true, false);
     }
 
     function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
-        _testSocialRecovery(false, true);
+        _testSocialRecovery(false, false, true);
     }
 
-    function _testSocialRecovery(bool testExpiringQueuedSignatures, bool testRevertingUnderlyingTransaction) internal {
+    function _testSocialRecovery(bool testSignatureNotQueued, bool testExpiringQueuedSignatures, bool testRevertingUnderlyingTransaction) internal {
         // Underlying transaction params
         address to = address(advancedSignerInstance);
         bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
@@ -1018,7 +1022,6 @@ contract WaymontSafeFactoryTest is Test {
 
         // Prep to queue signature #2 but don't queue yet:
         bytes memory friendSignature2;
-        bytes memory friend2PolicyGuardianSignature;
         {
             // Generate user signing device signature #2
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(FRIEND_TWO_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
@@ -1028,7 +1031,13 @@ contract WaymontSafeFactoryTest is Test {
             bytes32 queueSignatureUnderlyingHash = keccak256(abi.encode(QUEUE_SIGNATURE_TYPEHASH, keccak256(friendSignature2)));
             bytes32 queueSignatureMsgHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), timelockedRecoveryModuleInstance.domainSeparator(), queueSignatureUnderlyingHash));
             (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, queueSignatureMsgHash);
-            friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
+            bytes memory friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
+
+            // Queue signature #2 (unless we are testing not queueing it)
+            if (!testSignatureNotQueued) {
+                timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature2, friend2PolicyGuardianSignature);
+                assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature2)) == block.timestamp);
+            }
         }
 
         // Pack friend signatures
@@ -1051,15 +1060,12 @@ contract WaymontSafeFactoryTest is Test {
         // Wait for the timelock to pass in full
         vm.warp(block.timestamp + 1 seconds);
 
-        // Ensure cannot execute without queueing signature #2
-        vm.expectRevert("Signature not queued.");
-        timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
-
-        // Queue signature #2
-        timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature2, friend2PolicyGuardianSignature);
-        assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature2)) == block.timestamp);
-
-        if (testExpiringQueuedSignatures) {
+        // Switch logic based on test case
+        if (testSignatureNotQueued) {
+            // Ensure cannot execute without queueing signature #2
+            vm.expectRevert("Signature not queued.");
+            timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
+        } else if (testExpiringQueuedSignatures) {
             // Wait for the signature to expire
             vm.warp(block.timestamp + 1 weeks + 1 seconds);
 
