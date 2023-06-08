@@ -972,26 +972,32 @@ contract WaymontSafeFactoryTest is Test {
     event ExecutionSuccess(bytes32 indexed txHash);
     event ExecutionFailure(bytes32 indexed txHash);
 
+    struct TestSocialRecoveryOptions {
+        bool testSignatureNotQueued;
+        bool testExpiringQueuedSignatures;
+        bool testRevertingUnderlyingTransaction;
+    }
+
     function testSocialRecovery() public {
-        _testSocialRecovery(false, false, false);
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, false));
     }
 
     function testCannotSocialRecoveryIfNotAllSignaturesAreQueued() public {
-        _testSocialRecovery(true, false, false);
+        _testSocialRecovery(TestSocialRecoveryOptions(true, false, false));
     }
 
     function testCannotSocialRecoveryAfterQueuedSignaturesExpired() public {
-        _testSocialRecovery(false, true, false);
+        _testSocialRecovery(TestSocialRecoveryOptions(false, true, false));
     }
 
     function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
-        _testSocialRecovery(false, false, true);
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, true));
     }
 
-    function _testSocialRecovery(bool testSignatureNotQueued, bool testExpiringQueuedSignatures, bool testRevertingUnderlyingTransaction) internal {
+    function _testSocialRecovery(TestSocialRecoveryOptions memory options) internal {
         // Underlying transaction params
         address to = address(advancedSignerInstance);
-        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
+        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, options.testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
 
         // Standard params
         uint256 value = 0;
@@ -1034,7 +1040,7 @@ contract WaymontSafeFactoryTest is Test {
             bytes memory friend2PolicyGuardianSignature = abi.encodePacked(r, s, v);
 
             // Queue signature #2 (unless we are testing not queueing it)
-            if (!testSignatureNotQueued) {
+            if (!options.testSignatureNotQueued) {
                 timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature2, friend2PolicyGuardianSignature);
                 assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature2)) == block.timestamp);
             }
@@ -1061,11 +1067,11 @@ contract WaymontSafeFactoryTest is Test {
         vm.warp(block.timestamp + 1 seconds);
 
         // Switch logic based on test case
-        if (testSignatureNotQueued) {
+        if (options.testSignatureNotQueued) {
             // Ensure cannot execute without queueing signature #2
             vm.expectRevert("Signature not queued.");
             timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
-        } else if (testExpiringQueuedSignatures) {
+        } else if (options.testExpiringQueuedSignatures) {
             // Wait for the signature to expire
             vm.warp(block.timestamp + 1 weeks + 1 seconds);
 
@@ -1075,14 +1081,14 @@ contract WaymontSafeFactoryTest is Test {
         } else {
             // WaymontSafeTimelockedRecoveryModule.execTransaction
             vm.expectEmit(true, false, false, false, address(timelockedRecoveryModuleInstance));
-            if (testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
+            if (options.testRevertingUnderlyingTransaction) emit ExecutionFailure(txHash);
             else emit ExecutionSuccess(txHash);
             timelockedRecoveryModuleInstance.execTransaction(to, value, data, operation, packedFriendSignatures, finalPolicyGuardianSignature);
 
             // Assert TX succeeded
             assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
 
-            if (!testRevertingUnderlyingTransaction) {
+            if (!options.testRevertingUnderlyingTransaction) {
                 assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
                 assert(!advancedSignerInstance.isOwner(JOE));
             }
