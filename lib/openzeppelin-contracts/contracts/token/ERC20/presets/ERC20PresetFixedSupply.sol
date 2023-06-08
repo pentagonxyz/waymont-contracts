@@ -24,7 +24,12 @@ contract ERC20PresetFixedSupply is ERC20Burnable {
      *
      * See {ERC20-constructor}.
      */
-    constructor(string memory name, string memory symbol, uint256 initialSupply, address owner) ERC20(name, symbol) {
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 initialSupply,
+        address owner
+    ) ERC20(name, symbol) {
         _mint(owner, initialSupply);
     }
 }

@@ -14,12 +14,10 @@ import "../../utils/math/SafeCast.sol";
  * _Available since v4.3._
  */
 abstract contract GovernorVotesQuorumFraction is GovernorVotes {
-    using Checkpoints for Checkpoints.Trace224;
+    using Checkpoints for Checkpoints.History;
 
-    uint256 private _quorumNumerator; // DEPRECATED in favor of _quorumNumeratorHistory
-
-    /// @custom:oz-retyped-from Checkpoints.History
-    Checkpoints.Trace224 private _quorumNumeratorHistory;
+    uint256 private _quorumNumerator; // DEPRECATED
+    Checkpoints.History private _quorumNumeratorHistory;
 
     event QuorumNumeratorUpdated(uint256 oldQuorumNumerator, uint256 newQuorumNumerator);
 
@@ -42,9 +40,9 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
     }
 
     /**
-     * @dev Returns the quorum numerator at a specific timepoint. See {quorumDenominator}.
+     * @dev Returns the quorum numerator at a specific block number. See {quorumDenominator}.
      */
-    function quorumNumerator(uint256 timepoint) public view virtual returns (uint256) {
+    function quorumNumerator(uint256 blockNumber) public view virtual returns (uint256) {
         // If history is empty, fallback to old storage
         uint256 length = _quorumNumeratorHistory._checkpoints.length;
         if (length == 0) {
@@ -52,13 +50,13 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
         }
 
         // Optimistic search, check the latest checkpoint
-        Checkpoints.Checkpoint224 memory latest = _quorumNumeratorHistory._checkpoints[length - 1];
-        if (latest._key <= timepoint) {
+        Checkpoints.Checkpoint memory latest = _quorumNumeratorHistory._checkpoints[length - 1];
+        if (latest._blockNumber <= blockNumber) {
             return latest._value;
         }
 
         // Otherwise, do the binary search
-        return _quorumNumeratorHistory.upperLookupRecent(SafeCast.toUint32(timepoint));
+        return _quorumNumeratorHistory.getAtBlock(blockNumber);
     }
 
     /**
@@ -69,10 +67,10 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
     }
 
     /**
-     * @dev Returns the quorum for a timepoint, in terms of number of votes: `supply * numerator / denominator`.
+     * @dev Returns the quorum for a block number, in terms of number of votes: `supply * numerator / denominator`.
      */
-    function quorum(uint256 timepoint) public view virtual override returns (uint256) {
-        return (token.getPastTotalSupply(timepoint) * quorumNumerator(timepoint)) / quorumDenominator();
+    function quorum(uint256 blockNumber) public view virtual override returns (uint256) {
+        return (token.getPastTotalSupply(blockNumber) * quorumNumerator(blockNumber)) / quorumDenominator();
     }
 
     /**
@@ -109,12 +107,12 @@ abstract contract GovernorVotesQuorumFraction is GovernorVotes {
         // Make sure we keep track of the original numerator in contracts upgraded from a version without checkpoints.
         if (oldQuorumNumerator != 0 && _quorumNumeratorHistory._checkpoints.length == 0) {
             _quorumNumeratorHistory._checkpoints.push(
-                Checkpoints.Checkpoint224({_key: 0, _value: SafeCast.toUint224(oldQuorumNumerator)})
+                Checkpoints.Checkpoint({_blockNumber: 0, _value: SafeCast.toUint224(oldQuorumNumerator)})
             );
         }
 
         // Set new quorum for future proposals
-        _quorumNumeratorHistory.push(SafeCast.toUint32(clock()), SafeCast.toUint224(newQuorumNumerator));
+        _quorumNumeratorHistory.push(newQuorumNumerator);
 
         emit QuorumNumeratorUpdated(oldQuorumNumerator, newQuorumNumerator);
     }

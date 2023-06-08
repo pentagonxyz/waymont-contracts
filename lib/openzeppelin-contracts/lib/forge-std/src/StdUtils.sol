@@ -1,31 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.2 <0.9.0;
 
-pragma experimental ABIEncoderV2;
-
-import {IMulticall3} from "./interfaces/IMulticall3.sol";
 // TODO Remove import.
 import {VmSafe} from "./Vm.sol";
 
 abstract contract StdUtils {
-    /*//////////////////////////////////////////////////////////////////////////
-                                     CONSTANTS
-    //////////////////////////////////////////////////////////////////////////*/
-
-    IMulticall3 private constant multicall = IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11);
     VmSafe private constant vm = VmSafe(address(uint160(uint256(keccak256("hevm cheat code")))));
     address private constant CONSOLE2_ADDRESS = 0x000000000000000000636F6e736F6c652e6c6f67;
+
     uint256 private constant INT256_MIN_ABS =
         57896044618658097711785492504343953926634992332820282019728792003956564819968;
     uint256 private constant UINT256_MAX =
         115792089237316195423570985008687907853269984665640564039457584007913129639935;
-
-    // Used by default when deploying with create2, https://github.com/Arachnid/deterministic-deployment-proxy.
-    address private constant CREATE2_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                 INTERNAL FUNCTIONS
-    //////////////////////////////////////////////////////////////////////////*/
 
     function _bound(uint256 x, uint256 min, uint256 max) internal pure virtual returns (uint256 result) {
         require(min <= max, "StdUtils bound(uint256,uint256,uint256): Max is less than min.");
@@ -80,13 +66,8 @@ abstract contract StdUtils {
         console2_log("Bound result", vm.toString(result));
     }
 
-    function bytesToUint(bytes memory b) internal pure virtual returns (uint256) {
-        require(b.length <= 32, "StdUtils bytesToUint(bytes): Bytes length exceeds 32.");
-        return abi.decode(abi.encodePacked(new bytes(32 - b.length), b), (uint256));
-    }
-
     /// @dev Compute the address a contract will be deployed at for a given deployer address and nonce
-    /// @notice adapted from Solmate implementation (https://github.com/Rari-Capital/solmate/blob/main/src/utils/LibRLP.sol)
+    /// @notice adapated from Solmate implementation (https://github.com/Rari-Capital/solmate/blob/main/src/utils/LibRLP.sol)
     function computeCreateAddress(address deployer, uint256 nonce) internal pure virtual returns (address) {
         // forgefmt: disable-start
         // The integer zero is treated as an empty byte string, and as a result it only has a length prefix, 0x80, computed via 0x80 + 0.
@@ -119,57 +100,10 @@ abstract contract StdUtils {
         return addressFromLast20Bytes(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initcodeHash)));
     }
 
-    /// @dev returns the address of a contract created with CREATE2 using the default CREATE2 deployer
-    function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) internal pure returns (address) {
-        return computeCreate2Address(salt, initCodeHash, CREATE2_FACTORY);
+    function bytesToUint(bytes memory b) internal pure virtual returns (uint256) {
+        require(b.length <= 32, "StdUtils bytesToUint(bytes): Bytes length exceeds 32.");
+        return abi.decode(abi.encodePacked(new bytes(32 - b.length), b), (uint256));
     }
-
-    /// @dev returns the hash of the init code (creation code + no args) used in CREATE2 with no constructor arguments
-    /// @param creationCode the creation code of a contract C, as returned by type(C).creationCode
-    function hashInitCode(bytes memory creationCode) internal pure returns (bytes32) {
-        return hashInitCode(creationCode, "");
-    }
-
-    /// @dev returns the hash of the init code (creation code + ABI-encoded args) used in CREATE2
-    /// @param creationCode the creation code of a contract C, as returned by type(C).creationCode
-    /// @param args the ABI-encoded arguments to the constructor of C
-    function hashInitCode(bytes memory creationCode, bytes memory args) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(creationCode, args));
-    }
-
-    // Performs a single call with Multicall3 to query the ERC-20 token balances of the given addresses.
-    function getTokenBalances(address token, address[] memory addresses)
-        internal
-        virtual
-        returns (uint256[] memory balances)
-    {
-        uint256 tokenCodeSize;
-        assembly {
-            tokenCodeSize := extcodesize(token)
-        }
-        require(tokenCodeSize > 0, "StdUtils getTokenBalances(address,address[]): Token address is not a contract.");
-
-        // ABI encode the aggregate call to Multicall3.
-        uint256 length = addresses.length;
-        IMulticall3.Call[] memory calls = new IMulticall3.Call[](length);
-        for (uint256 i = 0; i < length; ++i) {
-            // 0x70a08231 = bytes4("balanceOf(address)"))
-            calls[i] = IMulticall3.Call({target: token, callData: abi.encodeWithSelector(0x70a08231, (addresses[i]))});
-        }
-
-        // Make the aggregate call.
-        (, bytes[] memory returnData) = multicall.aggregate(calls);
-
-        // ABI decode the return data and return the balances.
-        balances = new uint256[](length);
-        for (uint256 i = 0; i < length; ++i) {
-            balances[i] = abi.decode(returnData[i], (uint256));
-        }
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                 PRIVATE FUNCTIONS
-    //////////////////////////////////////////////////////////////////////////*/
 
     function addressFromLast20Bytes(bytes32 bytesValue) private pure returns (address) {
         return address(uint160(uint256(bytesValue)));
