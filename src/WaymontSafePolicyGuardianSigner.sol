@@ -69,6 +69,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     event PolicyGuardianChanged(address _policyGuardian);
 
     /// @notice Event emitted when the policy guardian is disabled globally.
+    /// @param permanently Whether or not the policy guardian was globally disabled permanently (if not, if it can be re-enabled later on).
     event PolicyGuardianDisabledGlobally(bool permanently);
 
     /// @notice Event emitted when the secondary policy guardian is changed.
@@ -127,7 +128,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
         require(policyGuardian != address(0), "Policy guardian already disabled.");
         policyGuardian = address(0);
         emit PolicyGuardianChanged(address(0));
-        emit PolicyGuardianDisabledGlobally(false);
+        emit PolicyGuardianDisabledGlobally(false); // Emit with flag `permanently` equal to `false` since the policy guardian can be re-enabled later on
     }
 
     /// @notice Permanently disables the policy guardian on all wallets.
@@ -137,7 +138,7 @@ contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
         policyGuardianPermanentlyDisabled = true;
         policyGuardian = address(0);
         emit PolicyGuardianChanged(address(0));
-        emit PolicyGuardianDisabledGlobally(true);
+        emit PolicyGuardianDisabledGlobally(true); // Emit with flag `permanently` equal to `true` since the policy guardian can NOT be re-enabled later on
     }
 
     /// @notice Sets the pending policy guardian manager.
