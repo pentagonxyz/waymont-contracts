@@ -36,7 +36,7 @@ interface VmSafe {
     // Signs data
     function sign(uint256 privateKey, bytes32 digest) external pure returns (uint8 v, bytes32 r, bytes32 s);
     // Gets the address for a given private key
-    function addr(uint256 privateKey) external pure returns (address keyAddr);
+    function addr(uint256 privateKey) external pure returns (address addr);
     // Gets the nonce of an account
     function getNonce(address account) external view returns (uint64 nonce);
     // Performs a foreign function call via the terminal
@@ -163,7 +163,7 @@ interface VmSafe {
         pure
         returns (uint256 privateKey);
     // Adds a private key to the local forge wallet and returns the address
-    function rememberKey(uint256 privateKey) external returns (address keyAddr);
+    function rememberKey(uint256 privateKey) external returns (address addr);
     //
     // parseJson
     //
@@ -184,26 +184,6 @@ interface VmSafe {
     // Given a string of JSON, return it as ABI-encoded
     function parseJson(string calldata json, string calldata key) external pure returns (bytes memory abiEncodedData);
     function parseJson(string calldata json) external pure returns (bytes memory abiEncodedData);
-
-    // The following parseJson cheatcodes will do type coercion, for the type that they indicate.
-    // For example, parseJsonUint will coerce all values to a uint256. That includes stringified numbers '12'
-    // and hex numbers '0xEF'.
-    // Type coercion works ONLY for discrete values or arrays. That means that the key must return a value or array, not
-    // a JSON object.
-    function parseJsonUint(string calldata, string calldata) external returns (uint256);
-    function parseJsonUintArray(string calldata, string calldata) external returns (uint256[] memory);
-    function parseJsonInt(string calldata, string calldata) external returns (int256);
-    function parseJsonIntArray(string calldata, string calldata) external returns (int256[] memory);
-    function parseJsonBool(string calldata, string calldata) external returns (bool);
-    function parseJsonBoolArray(string calldata, string calldata) external returns (bool[] memory);
-    function parseJsonAddress(string calldata, string calldata) external returns (address);
-    function parseJsonAddressArray(string calldata, string calldata) external returns (address[] memory);
-    function parseJsonString(string calldata, string calldata) external returns (string memory);
-    function parseJsonStringArray(string calldata, string calldata) external returns (string[] memory);
-    function parseJsonBytes(string calldata, string calldata) external returns (bytes memory);
-    function parseJsonBytesArray(string calldata, string calldata) external returns (bytes[] memory);
-    function parseJsonBytes32(string calldata, string calldata) external returns (bytes32);
-    function parseJsonBytes32Array(string calldata, string calldata) external returns (bytes32[] memory);
 
     // Serialize a key and value to a JSON object stored in-memory that can be later written to a file
     // It returns the stringified version of the specific JSON file up to that moment.
@@ -347,10 +327,6 @@ interface Vm is VmSafe {
     function expectCall(address callee, bytes calldata data) external;
     // Expects a call to an address with the specified msg.value and calldata
     function expectCall(address callee, uint256 msgValue, bytes calldata data) external;
-    // Expect a call to an address with the specified msg.value, gas, and calldata.
-    function expectCall(address callee, uint256 msgValue, uint64 gas, bytes calldata data) external;
-    // Expect a call to an address with the specified msg.value and calldata, and a *minimum* amount of gas.
-    function expectCallMinGas(address callee, uint256 msgValue, uint64 minGas, bytes calldata data) external;
     // Sets block.coinbase
     function coinbase(address newCoinbase) external;
     // Snapshot the current state of the evm.

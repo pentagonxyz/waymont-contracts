@@ -2,11 +2,11 @@
 // OpenZeppelin Contracts (last updated v4.8.0) (governance/utils/Votes.sol)
 pragma solidity ^0.8.0;
 
-import "../../interfaces/IERC5805.sol";
 import "../../utils/Context.sol";
 import "../../utils/Counters.sol";
 import "../../utils/Checkpoints.sol";
 import "../../utils/cryptography/EIP712.sol";
+import "./IVotes.sol";
 
 /**
  * @dev This is a base abstract contract that tracks voting units, which are a measure of voting power that can be
@@ -28,40 +28,18 @@ import "../../utils/cryptography/EIP712.sol";
  *
  * _Available since v4.5._
  */
-abstract contract Votes is Context, EIP712, IERC5805 {
-    using Checkpoints for Checkpoints.Trace224;
+abstract contract Votes is IVotes, Context, EIP712 {
+    using Checkpoints for Checkpoints.History;
     using Counters for Counters.Counter;
 
     bytes32 private constant _DELEGATION_TYPEHASH =
         keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
     mapping(address => address) private _delegation;
-
-    /// @custom:oz-retyped-from mapping(address => Checkpoints.History)
-    mapping(address => Checkpoints.Trace224) private _delegateCheckpoints;
-
-    /// @custom:oz-retyped-from Checkpoints.History
-    Checkpoints.Trace224 private _totalCheckpoints;
+    mapping(address => Checkpoints.History) private _delegateCheckpoints;
+    Checkpoints.History private _totalCheckpoints;
 
     mapping(address => Counters.Counter) private _nonces;
-
-    /**
-     * @dev Clock used for flagging checkpoints. Can be overridden to implement timestamp based
-     * checkpoints (and voting), in which case {CLOCK_MODE} should be overridden as well to match.
-     */
-    function clock() public view virtual override returns (uint48) {
-        return SafeCast.toUint48(block.number);
-    }
-
-    /**
-     * @dev Machine-readable description of the clock as specified in EIP-6372.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function CLOCK_MODE() public view virtual override returns (string memory) {
-        // Check that the clock was not modified
-        require(clock() == block.number, "Votes: broken clock mode");
-        return "mode=blocknumber&from=default";
-    }
 
     /**
      * @dev Returns the current amount of votes that `account` has.
@@ -71,21 +49,18 @@ abstract contract Votes is Context, EIP712, IERC5805 {
     }
 
     /**
-     * @dev Returns the amount of votes that `account` had at a specific moment in the past. If the `clock()` is
-     * configured to use block numbers, this will return the value at the end of the corresponding block.
+     * @dev Returns the amount of votes that `account` had at the end of a past block (`blockNumber`).
      *
      * Requirements:
      *
-     * - `timepoint` must be in the past. If operating using block numbers, the block must be already mined.
+     * - `blockNumber` must have been already mined
      */
-    function getPastVotes(address account, uint256 timepoint) public view virtual override returns (uint256) {
-        require(timepoint < clock(), "Votes: future lookup");
-        return _delegateCheckpoints[account].upperLookupRecent(SafeCast.toUint32(timepoint));
+    function getPastVotes(address account, uint256 blockNumber) public view virtual override returns (uint256) {
+        return _delegateCheckpoints[account].getAtProbablyRecentBlock(blockNumber);
     }
 
     /**
-     * @dev Returns the total supply of votes available at a specific moment in the past. If the `clock()` is
-     * configured to use block numbers, this will return the value at the end of the corresponding block.
+     * @dev Returns the total supply of votes available at the end of a past block (`blockNumber`).
      *
      * NOTE: This value is the sum of all available votes, which is not necessarily the sum of all delegated votes.
      * Votes that have not been delegated are still part of total supply, even though they would not participate in a
@@ -93,11 +68,11 @@ abstract contract Votes is Context, EIP712, IERC5805 {
      *
      * Requirements:
      *
-     * - `timepoint` must be in the past. If operating using block numbers, the block must be already mined.
+     * - `blockNumber` must have been already mined
      */
-    function getPastTotalSupply(uint256 timepoint) public view virtual override returns (uint256) {
-        require(timepoint < clock(), "Votes: future lookup");
-        return _totalCheckpoints.upperLookupRecent(SafeCast.toUint32(timepoint));
+    function getPastTotalSupply(uint256 blockNumber) public view virtual override returns (uint256) {
+        require(blockNumber < block.number, "Votes: block not yet mined");
+        return _totalCheckpoints.getAtProbablyRecentBlock(blockNumber);
     }
 
     /**
@@ -161,12 +136,16 @@ abstract contract Votes is Context, EIP712, IERC5805 {
      * @dev Transfers, mints, or burns voting units. To register a mint, `from` should be zero. To register a burn, `to`
      * should be zero. Total supply of voting units will be adjusted with mints and burns.
      */
-    function _transferVotingUnits(address from, address to, uint256 amount) internal virtual {
+    function _transferVotingUnits(
+        address from,
+        address to,
+        uint256 amount
+    ) internal virtual {
         if (from == address(0)) {
-            _push(_totalCheckpoints, _add, SafeCast.toUint224(amount));
+            _totalCheckpoints.push(_add, amount);
         }
         if (to == address(0)) {
-            _push(_totalCheckpoints, _subtract, SafeCast.toUint224(amount));
+            _totalCheckpoints.push(_subtract, amount);
         }
         _moveDelegateVotes(delegates(from), delegates(to), amount);
     }
@@ -174,40 +153,28 @@ abstract contract Votes is Context, EIP712, IERC5805 {
     /**
      * @dev Moves delegated votes from one delegate to another.
      */
-    function _moveDelegateVotes(address from, address to, uint256 amount) private {
+    function _moveDelegateVotes(
+        address from,
+        address to,
+        uint256 amount
+    ) private {
         if (from != to && amount > 0) {
             if (from != address(0)) {
-                (uint256 oldValue, uint256 newValue) = _push(
-                    _delegateCheckpoints[from],
-                    _subtract,
-                    SafeCast.toUint224(amount)
-                );
+                (uint256 oldValue, uint256 newValue) = _delegateCheckpoints[from].push(_subtract, amount);
                 emit DelegateVotesChanged(from, oldValue, newValue);
             }
             if (to != address(0)) {
-                (uint256 oldValue, uint256 newValue) = _push(
-                    _delegateCheckpoints[to],
-                    _add,
-                    SafeCast.toUint224(amount)
-                );
+                (uint256 oldValue, uint256 newValue) = _delegateCheckpoints[to].push(_add, amount);
                 emit DelegateVotesChanged(to, oldValue, newValue);
             }
         }
     }
 
-    function _push(
-        Checkpoints.Trace224 storage store,
-        function(uint224, uint224) view returns (uint224) op,
-        uint224 delta
-    ) private returns (uint224, uint224) {
-        return store.push(SafeCast.toUint32(clock()), op(store.latest(), delta));
-    }
-
-    function _add(uint224 a, uint224 b) private pure returns (uint224) {
+    function _add(uint256 a, uint256 b) private pure returns (uint256) {
         return a + b;
     }
 
-    function _subtract(uint224 a, uint224 b) private pure returns (uint224) {
+    function _subtract(uint256 a, uint256 b) private pure returns (uint256) {
         return a - b;
     }
 

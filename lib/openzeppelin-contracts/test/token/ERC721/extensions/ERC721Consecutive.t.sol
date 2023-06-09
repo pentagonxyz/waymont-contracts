@@ -2,8 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-// solhint-disable func-name-mixedcase
-
 import "../../../../contracts/token/ERC721/extensions/ERC721Consecutive.sol";
 import "forge-std/Test.sol";
 

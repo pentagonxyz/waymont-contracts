@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
+// OpenZeppelin Contracts v4.4.1 (interfaces/draft-IERC2612.sol)
 
 pragma solidity ^0.8.0;
 
-// EIP-2612 is Final as of 2022-11-01. This file is deprecated.
+import "../token/ERC20/extensions/draft-IERC20Permit.sol";
 
-import "./IERC2612.sol";
+interface IERC2612 is IERC20Permit {}

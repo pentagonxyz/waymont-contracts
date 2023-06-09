@@ -9,12 +9,6 @@ contract StdAssertionsTest is Test {
     bool constant EXPECT_PASS = false;
     bool constant EXPECT_FAIL = true;
 
-    bool constant SHOULD_REVERT = true;
-    bool constant SHOULD_RETURN = false;
-
-    bool constant STRICT_REVERT_DATA = true;
-    bool constant NON_STRICT_REVERT_DATA = false;
-
     TestTest t = new TestTest();
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -347,46 +341,6 @@ contract StdAssertionsTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////////////////
-                                    APPROX_EQ_ABS_DECIMAL(UINT)
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function testAssertApproxEqAbsDecimal_Uint_Pass(uint256 a, uint256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) <= maxDelta);
-
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqAbsDecimal_Uint_Fail(uint256 a, uint256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) > maxDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log("Error: a ~= b not satisfied [uint]");
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, EXPECT_FAIL);
-    }
-
-    function testAssertApproxEqAbsDecimal_UintErr_Pass(uint256 a, uint256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) <= maxDelta);
-
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, CUSTOM_ERROR, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqAbsDecimal_UintErr_Fail(uint256 a, uint256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) > maxDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log_named_string("Error", CUSTOM_ERROR);
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, CUSTOM_ERROR, EXPECT_FAIL);
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
                                     APPROX_EQ_ABS(INT)
     //////////////////////////////////////////////////////////////////////////*/
 
@@ -416,42 +370,6 @@ contract StdAssertionsTest is Test {
         vm.expectEmit(false, false, false, true);
         emit log_named_string("Error", CUSTOM_ERROR);
         t._assertApproxEqAbs(a, b, maxDelta, CUSTOM_ERROR, EXPECT_FAIL);
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                    APPROX_EQ_ABS_DECIMAL(INT)
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function testAssertApproxEqAbsDecimal_Int_Pass(int256 a, int256 b, uint256 maxDelta, uint256 decimals) external {
-        vm.assume(stdMath.delta(a, b) <= maxDelta);
-
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqAbsDecimal_Int_Fail(int256 a, int256 b, uint256 maxDelta, uint256 decimals) external {
-        vm.assume(stdMath.delta(a, b) > maxDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log("Error: a ~= b not satisfied [int]");
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, EXPECT_FAIL);
-    }
-
-    function testAssertApproxEqAbsDecimal_IntErr_Pass(int256 a, int256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) <= maxDelta);
-
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, CUSTOM_ERROR, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqAbsDecimal_IntErr_Fail(int256 a, int256 b, uint256 maxDelta, uint256 decimals)
-        external
-    {
-        vm.assume(stdMath.delta(a, b) > maxDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log_named_string("Error", CUSTOM_ERROR);
-        t._assertApproxEqAbsDecimal(a, b, maxDelta, decimals, CUSTOM_ERROR, EXPECT_FAIL);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -491,50 +409,6 @@ contract StdAssertionsTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////////////////
-                                    APPROX_EQ_REL_DECIMAL(UINT)
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function testAssertApproxEqRelDecimal_Uint_Pass(uint256 a, uint256 b, uint256 maxPercentDelta, uint256 decimals)
-        external
-    {
-        vm.assume(a < type(uint128).max && b < type(uint128).max && b != 0);
-        vm.assume(stdMath.percentDelta(a, b) <= maxPercentDelta);
-
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqRelDecimal_Uint_Fail(uint256 a, uint256 b, uint256 maxPercentDelta, uint256 decimals)
-        external
-    {
-        vm.assume(a < type(uint128).max && b < type(uint128).max && b != 0);
-        vm.assume(stdMath.percentDelta(a, b) > maxPercentDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log("Error: a ~= b not satisfied [uint]");
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, EXPECT_FAIL);
-    }
-
-    function testAssertApproxEqRelDecimal_UintErr_Pass(uint256 a, uint256 b, uint256 maxPercentDelta, uint256 decimals)
-        external
-    {
-        vm.assume(a < type(uint128).max && b < type(uint128).max && b != 0);
-        vm.assume(stdMath.percentDelta(a, b) <= maxPercentDelta);
-
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, CUSTOM_ERROR, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqRelDecimal_UintErr_Fail(uint256 a, uint256 b, uint256 maxPercentDelta, uint256 decimals)
-        external
-    {
-        vm.assume(a < type(uint128).max && b < type(uint128).max && b != 0);
-        vm.assume(stdMath.percentDelta(a, b) > maxPercentDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log_named_string("Error", CUSTOM_ERROR);
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, CUSTOM_ERROR, EXPECT_FAIL);
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
                                     APPROX_EQ_REL(INT)
     //////////////////////////////////////////////////////////////////////////*/
 
@@ -568,138 +442,6 @@ contract StdAssertionsTest is Test {
         vm.expectEmit(false, false, false, true);
         emit log_named_string("Error", CUSTOM_ERROR);
         t._assertApproxEqRel(a, b, maxPercentDelta, CUSTOM_ERROR, EXPECT_FAIL);
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                    APPROX_EQ_REL_DECIMAL(INT)
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function testAssertApproxEqRelDecimal_Int_Pass(int128 a, int128 b, uint128 maxPercentDelta, uint128 decimals)
-        external
-    {
-        vm.assume(b != 0);
-        vm.assume(stdMath.percentDelta(a, b) <= maxPercentDelta);
-
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqRelDecimal_Int_Fail(int128 a, int128 b, uint128 maxPercentDelta, uint128 decimals)
-        external
-    {
-        vm.assume(b != 0);
-        vm.assume(stdMath.percentDelta(a, b) > maxPercentDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log("Error: a ~= b not satisfied [int]");
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, EXPECT_FAIL);
-    }
-
-    function testAssertApproxEqRelDecimal_IntErr_Pass(int128 a, int128 b, uint128 maxPercentDelta, uint128 decimals)
-        external
-    {
-        vm.assume(b != 0);
-        vm.assume(stdMath.percentDelta(a, b) <= maxPercentDelta);
-
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, CUSTOM_ERROR, EXPECT_PASS);
-    }
-
-    function testAssertApproxEqRelDecimal_IntErr_Fail(int128 a, int128 b, uint128 maxPercentDelta, uint128 decimals)
-        external
-    {
-        vm.assume(b != 0);
-        vm.assume(stdMath.percentDelta(a, b) > maxPercentDelta);
-
-        vm.expectEmit(false, false, false, true);
-        emit log_named_string("Error", CUSTOM_ERROR);
-        t._assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, CUSTOM_ERROR, EXPECT_FAIL);
-    }
-
-    /*//////////////////////////////////////////////////////////////////////////
-                                    ASSERT_EQ_CALL
-    //////////////////////////////////////////////////////////////////////////*/
-
-    function testAssertEqCall_Return_Pass(
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory returnData,
-        bool strictRevertData
-    ) external {
-        address targetA = address(new TestMockCall(returnData, SHOULD_RETURN));
-        address targetB = address(new TestMockCall(returnData, SHOULD_RETURN));
-
-        t._assertEqCall(targetA, targetB, callDataA, callDataB, returnData, returnData, strictRevertData, EXPECT_PASS);
-    }
-
-    function testAssertEqCall_Return_Fail(
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory returnDataA,
-        bytes memory returnDataB,
-        bool strictRevertData
-    ) external {
-        vm.assume(keccak256(returnDataA) != keccak256(returnDataB));
-
-        address targetA = address(new TestMockCall(returnDataA, SHOULD_RETURN));
-        address targetB = address(new TestMockCall(returnDataB, SHOULD_RETURN));
-
-        vm.expectEmit(true, true, true, true);
-        emit log_named_string("Error", "Call return data does not match");
-        t._assertEqCall(targetA, targetB, callDataA, callDataB, returnDataA, returnDataB, strictRevertData, EXPECT_FAIL);
-    }
-
-    function testAssertEqCall_Revert_Pass(
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory revertDataA,
-        bytes memory revertDataB
-    ) external {
-        address targetA = address(new TestMockCall(revertDataA, SHOULD_REVERT));
-        address targetB = address(new TestMockCall(revertDataB, SHOULD_REVERT));
-
-        t._assertEqCall(
-            targetA, targetB, callDataA, callDataB, revertDataA, revertDataB, NON_STRICT_REVERT_DATA, EXPECT_PASS
-        );
-    }
-
-    function testAssertEqCall_Revert_Fail(
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory revertDataA,
-        bytes memory revertDataB
-    ) external {
-        vm.assume(keccak256(revertDataA) != keccak256(revertDataB));
-
-        address targetA = address(new TestMockCall(revertDataA, SHOULD_REVERT));
-        address targetB = address(new TestMockCall(revertDataB, SHOULD_REVERT));
-
-        vm.expectEmit(true, true, true, true);
-        emit log_named_string("Error", "Call revert data does not match");
-        t._assertEqCall(
-            targetA, targetB, callDataA, callDataB, revertDataA, revertDataB, STRICT_REVERT_DATA, EXPECT_FAIL
-        );
-    }
-
-    function testAssertEqCall_Fail(
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory returnDataA,
-        bytes memory returnDataB,
-        bool strictRevertData
-    ) external {
-        address targetA = address(new TestMockCall(returnDataA, SHOULD_RETURN));
-        address targetB = address(new TestMockCall(returnDataB, SHOULD_REVERT));
-
-        vm.expectEmit(true, true, true, true);
-        emit log_named_bytes("  Left call return data", returnDataA);
-        vm.expectEmit(true, true, true, true);
-        emit log_named_bytes(" Right call revert data", returnDataB);
-        t._assertEqCall(targetA, targetB, callDataA, callDataB, returnDataA, returnDataB, strictRevertData, EXPECT_FAIL);
-
-        vm.expectEmit(true, true, true, true);
-        emit log_named_bytes("  Left call revert data", returnDataB);
-        vm.expectEmit(true, true, true, true);
-        emit log_named_bytes(" Right call return data", returnDataA);
-        t._assertEqCall(targetB, targetA, callDataB, callDataA, returnDataB, returnDataA, strictRevertData, EXPECT_FAIL);
     }
 }
 
@@ -801,24 +543,6 @@ contract TestTest is Test {
         assertApproxEqAbs(a, b, maxDelta, err);
     }
 
-    function _assertApproxEqAbsDecimal(uint256 a, uint256 b, uint256 maxDelta, uint256 decimals, bool expectFail)
-        external
-        expectFailure(expectFail)
-    {
-        assertApproxEqAbsDecimal(a, b, maxDelta, decimals);
-    }
-
-    function _assertApproxEqAbsDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 maxDelta,
-        uint256 decimals,
-        string memory err,
-        bool expectFail
-    ) external expectFailure(expectFail) {
-        assertApproxEqAbsDecimal(a, b, maxDelta, decimals, err);
-    }
-
     function _assertApproxEqAbs(int256 a, int256 b, uint256 maxDelta, bool expectFail)
         external
         expectFailure(expectFail)
@@ -831,24 +555,6 @@ contract TestTest is Test {
         expectFailure(expectFail)
     {
         assertApproxEqAbs(a, b, maxDelta, err);
-    }
-
-    function _assertApproxEqAbsDecimal(int256 a, int256 b, uint256 maxDelta, uint256 decimals, bool expectFail)
-        external
-        expectFailure(expectFail)
-    {
-        assertApproxEqAbsDecimal(a, b, maxDelta, decimals);
-    }
-
-    function _assertApproxEqAbsDecimal(
-        int256 a,
-        int256 b,
-        uint256 maxDelta,
-        uint256 decimals,
-        string memory err,
-        bool expectFail
-    ) external expectFailure(expectFail) {
-        assertApproxEqAbsDecimal(a, b, maxDelta, decimals, err);
     }
 
     function _assertApproxEqRel(uint256 a, uint256 b, uint256 maxPercentDelta, bool expectFail)
@@ -865,24 +571,6 @@ contract TestTest is Test {
         assertApproxEqRel(a, b, maxPercentDelta, err);
     }
 
-    function _assertApproxEqRelDecimal(uint256 a, uint256 b, uint256 maxPercentDelta, uint256 decimals, bool expectFail)
-        external
-        expectFailure(expectFail)
-    {
-        assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals);
-    }
-
-    function _assertApproxEqRelDecimal(
-        uint256 a,
-        uint256 b,
-        uint256 maxPercentDelta,
-        uint256 decimals,
-        string memory err,
-        bool expectFail
-    ) external expectFailure(expectFail) {
-        assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, err);
-    }
-
     function _assertApproxEqRel(int256 a, int256 b, uint256 maxPercentDelta, bool expectFail)
         external
         expectFailure(expectFail)
@@ -895,60 +583,5 @@ contract TestTest is Test {
         expectFailure(expectFail)
     {
         assertApproxEqRel(a, b, maxPercentDelta, err);
-    }
-
-    function _assertApproxEqRelDecimal(int256 a, int256 b, uint256 maxPercentDelta, uint256 decimals, bool expectFail)
-        external
-        expectFailure(expectFail)
-    {
-        assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals);
-    }
-
-    function _assertApproxEqRelDecimal(
-        int256 a,
-        int256 b,
-        uint256 maxPercentDelta,
-        uint256 decimals,
-        string memory err,
-        bool expectFail
-    ) external expectFailure(expectFail) {
-        assertApproxEqRelDecimal(a, b, maxPercentDelta, decimals, err);
-    }
-
-    function _assertEqCall(
-        address targetA,
-        address targetB,
-        bytes memory callDataA,
-        bytes memory callDataB,
-        bytes memory returnDataA,
-        bytes memory returnDataB,
-        bool strictRevertData,
-        bool expectFail
-    ) external expectFailure(expectFail) {
-        assertEqCall(targetA, callDataA, targetB, callDataB, strictRevertData);
-    }
-}
-
-contract TestMockCall {
-    bytes returnData;
-    bool shouldRevert;
-
-    constructor(bytes memory returnData_, bool shouldRevert_) {
-        returnData = returnData_;
-        shouldRevert = shouldRevert_;
-    }
-
-    fallback() external payable {
-        bytes memory returnData_ = returnData;
-
-        if (shouldRevert) {
-            assembly {
-                revert(add(returnData_, 0x20), mload(returnData_))
-            }
-        } else {
-            assembly {
-                return(add(returnData_, 0x20), mload(returnData_))
-            }
-        }
     }
 }

@@ -197,7 +197,7 @@ abstract contract StdCheatsSafe {
         assumeNoPrecompiles(addr, chainId);
     }
 
-    function assumeNoPrecompiles(address addr, uint256 chainId) internal pure virtual {
+    function assumeNoPrecompiles(address addr, uint256 chainId) internal virtual {
         // Note: For some chains like Optimism these are technically predeploys (i.e. bytecode placed at a specific
         // address), but the same rationale for excluding them applies so we include those too.
 
@@ -425,7 +425,7 @@ abstract contract StdCheatsSafe {
         return abi.decode(abi.encodePacked(new bytes(32 - b.length), b), (uint256));
     }
 
-    function isFork() internal view virtual returns (bool status) {
+    function isFork() internal virtual returns (bool status) {
         try vm.activeFork() {
             status = true;
         } catch (bytes memory) {}
@@ -463,13 +463,6 @@ abstract contract StdCheatsSafe {
             vm.resumeGasMetering();
         }
     }
-
-    // a cheat for fuzzing addresses that are payable only
-    // see https://github.com/foundry-rs/foundry/issues/3631
-    function assumePayable(address addr) internal virtual {
-        (bool success,) = payable(addr).call{value: 0}("");
-        vm.assume(success);
-    }
 }
 
 // Wrappers around cheatcodes to avoid footguns
@@ -489,52 +482,52 @@ abstract contract StdCheats is StdCheatsSafe {
     }
 
     // Setup a prank from an address that has some ether
-    function hoax(address msgSender) internal virtual {
-        vm.deal(msgSender, 1 << 128);
-        vm.prank(msgSender);
+    function hoax(address who) internal virtual {
+        vm.deal(who, 1 << 128);
+        vm.prank(who);
     }
 
-    function hoax(address msgSender, uint256 give) internal virtual {
-        vm.deal(msgSender, give);
-        vm.prank(msgSender);
+    function hoax(address who, uint256 give) internal virtual {
+        vm.deal(who, give);
+        vm.prank(who);
     }
 
-    function hoax(address msgSender, address origin) internal virtual {
-        vm.deal(msgSender, 1 << 128);
-        vm.prank(msgSender, origin);
+    function hoax(address who, address origin) internal virtual {
+        vm.deal(who, 1 << 128);
+        vm.prank(who, origin);
     }
 
-    function hoax(address msgSender, address origin, uint256 give) internal virtual {
-        vm.deal(msgSender, give);
-        vm.prank(msgSender, origin);
+    function hoax(address who, address origin, uint256 give) internal virtual {
+        vm.deal(who, give);
+        vm.prank(who, origin);
     }
 
     // Start perpetual prank from an address that has some ether
-    function startHoax(address msgSender) internal virtual {
-        vm.deal(msgSender, 1 << 128);
-        vm.startPrank(msgSender);
+    function startHoax(address who) internal virtual {
+        vm.deal(who, 1 << 128);
+        vm.startPrank(who);
     }
 
-    function startHoax(address msgSender, uint256 give) internal virtual {
-        vm.deal(msgSender, give);
-        vm.startPrank(msgSender);
+    function startHoax(address who, uint256 give) internal virtual {
+        vm.deal(who, give);
+        vm.startPrank(who);
     }
 
     // Start perpetual prank from an address that has some ether
     // tx.origin is set to the origin parameter
-    function startHoax(address msgSender, address origin) internal virtual {
-        vm.deal(msgSender, 1 << 128);
-        vm.startPrank(msgSender, origin);
+    function startHoax(address who, address origin) internal virtual {
+        vm.deal(who, 1 << 128);
+        vm.startPrank(who, origin);
     }
 
-    function startHoax(address msgSender, address origin, uint256 give) internal virtual {
-        vm.deal(msgSender, give);
-        vm.startPrank(msgSender, origin);
+    function startHoax(address who, address origin, uint256 give) internal virtual {
+        vm.deal(who, give);
+        vm.startPrank(who, origin);
     }
 
-    function changePrank(address msgSender) internal virtual {
+    function changePrank(address who) internal virtual {
         vm.stopPrank();
-        vm.startPrank(msgSender);
+        vm.startPrank(who);
     }
 
     // The same as Vm's `deal`
@@ -547,12 +540,6 @@ abstract contract StdCheats is StdCheatsSafe {
     // Use the alternative signature to update `totalSupply`
     function deal(address token, address to, uint256 give) internal virtual {
         deal(token, to, give, false);
-    }
-
-    // Set the balance of an account for any ERC1155 token
-    // Use the alternative signature to update `totalSupply`
-    function dealERC1155(address token, address to, uint256 id, uint256 give) internal virtual {
-        dealERC1155(token, to, id, give, false);
     }
 
     function deal(address token, address to, uint256 give, bool adjust) internal virtual {
@@ -574,51 +561,5 @@ abstract contract StdCheats is StdCheatsSafe {
             }
             stdstore.target(token).sig(0x18160ddd).checked_write(totSup);
         }
-    }
-
-    function dealERC1155(address token, address to, uint256 id, uint256 give, bool adjust) internal virtual {
-        // get current balance
-        (, bytes memory balData) = token.call(abi.encodeWithSelector(0x00fdd58e, to, id));
-        uint256 prevBal = abi.decode(balData, (uint256));
-
-        // update balance
-        stdstore.target(token).sig(0x00fdd58e).with_key(to).with_key(id).checked_write(give);
-
-        // update total supply
-        if (adjust) {
-            (, bytes memory totSupData) = token.call(abi.encodeWithSelector(0xbd85b039, id));
-            require(
-                totSupData.length != 0,
-                "StdCheats deal(address,address,uint,uint,bool): target contract is not ERC1155Supply."
-            );
-            uint256 totSup = abi.decode(totSupData, (uint256));
-            if (give < prevBal) {
-                totSup -= (prevBal - give);
-            } else {
-                totSup += (give - prevBal);
-            }
-            stdstore.target(token).sig(0xbd85b039).with_key(id).checked_write(totSup);
-        }
-    }
-
-    function dealERC721(address token, address to, uint256 id) internal virtual {
-        // check if token id is already minted and the actual owner.
-        (bool successMinted, bytes memory ownerData) = token.staticcall(abi.encodeWithSelector(0x6352211e, id));
-        require(successMinted, "StdCheats deal(address,address,uint,bool): id not minted.");
-
-        // get owner current balance
-        (, bytes memory fromBalData) = token.call(abi.encodeWithSelector(0x70a08231, abi.decode(ownerData, (address))));
-        uint256 fromPrevBal = abi.decode(fromBalData, (uint256));
-
-        // get new user current balance
-        (, bytes memory toBalData) = token.call(abi.encodeWithSelector(0x70a08231, to));
-        uint256 toPrevBal = abi.decode(toBalData, (uint256));
-
-        // update balances
-        stdstore.target(token).sig(0x70a08231).with_key(abi.decode(ownerData, (address))).checked_write(--fromPrevBal);
-        stdstore.target(token).sig(0x70a08231).with_key(to).checked_write(++toPrevBal);
-
-        // update owner
-        stdstore.target(token).sig(0x6352211e).with_key(id).checked_write(to);
     }
 }
