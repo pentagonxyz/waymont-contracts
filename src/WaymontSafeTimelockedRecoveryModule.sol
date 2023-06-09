@@ -15,8 +15,8 @@ contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSign
     /// @dev Typehash for `queueTransaction`: `keccak256("QueueSignature(bytes signature)")`.
     bytes32 private constant QUEUE_SIGNATURE_TYPEHASH = 0x56f7b592467518044b02545f1b4518cd51c746d04978afb6a3b9d05895cb79cf;
 
-    /// @dev Typehash for `execTransaction`: `keccak256("ExecTransaction(uint256 nonce)")`.
-    bytes32 private constant EXEC_TRANSACTION_TYPEHASH = 0x60c023ac5b12ccfb6346228598efbab110f9f06cd102f7009adbf0dbb8b8c240;
+    /// @dev Typehash for `execTransaction`: `keccak256("ExecTransaction(address safe,uint256 nonce,address to,uint256 value,bytes data,uint8 operation)")`.
+    bytes32 private constant EXEC_TRANSACTION_TYPEHASH = 0x017ac7ed7bb44ab92aef10c445ff46b9a95c18bfa2bf271178886356daa01e9c;
 
     /// @dev Minimum signing timelock value (in seconds): 15 minutes.
     uint256 public constant MIN_SIGNING_TIMELOCK = 15 minutes;
