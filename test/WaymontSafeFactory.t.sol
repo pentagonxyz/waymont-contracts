@@ -390,6 +390,7 @@ contract WaymontSafeFactoryTest is Test {
         assert(timelockedRecoveryModuleInstance.signingTimelock() == moduleCreationParams.recoverySigningTimelock);
         assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
         assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
+        assert(safeInstance.isModuleEnabled(address(timelockedRecoveryModuleInstance)));
     }
 
     function testCannotReinitializeAdvancedSigner() public {
@@ -976,22 +977,103 @@ contract WaymontSafeFactoryTest is Test {
         bool testSignatureNotQueued;
         bool testExpiringQueuedSignatures;
         bool testRevertingUnderlyingTransaction;
+        bool expectPolicyGuardianSignatureValidationFailure;
     }
 
     function testSocialRecovery() public {
-        _testSocialRecovery(TestSocialRecoveryOptions(false, false, false));
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, false, false));
     }
 
     function testCannotSocialRecoveryIfNotAllSignaturesAreQueued() public {
-        _testSocialRecovery(TestSocialRecoveryOptions(true, false, false));
+        _testSocialRecovery(TestSocialRecoveryOptions(true, false, false, false));
     }
 
     function testCannotSocialRecoveryAfterQueuedSignaturesExpired() public {
-        _testSocialRecovery(TestSocialRecoveryOptions(false, true, false));
+        _testSocialRecovery(TestSocialRecoveryOptions(false, true, false, false));
     }
 
     function testCannotSocialRecoveryWithRevertingUnderlyingTransaction() public {
-        _testSocialRecovery(TestSocialRecoveryOptions(false, false, true));
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, true, false));
+    }
+
+    function testCannotSocialRecoveryWithNonfunctionalPolicyGuardianSigner() public {
+        // Create mock WaymontSafePolicyGuardianSigner
+        WaymontSafePolicyGuardianSigner mockPolicyGuardianSigner = WaymontSafePolicyGuardianSigner(address(7539));
+        vm.mockCall(
+            address(mockPolicyGuardianSigner),
+            abi.encodeWithSelector(policyGuardianSigner.isValidSignature.selector),
+            abi.encode(bytes4(0xffffffff))
+        );
+
+        // WaymontSafeTimelockedRecoveryModule params (use alternate deploymentNonce)
+        address[] memory recoverySigners = new address[](3);
+        recoverySigners[0] = FRIEND_ONE;
+        recoverySigners[1] = FRIEND_TWO;
+        recoverySigners[2] = FRIEND_THREE;
+        uint256 recoveryThreshold = 2;
+        uint256 recoverySigningTimelock = 3 days;
+
+        // Predict WaymontSafeTimelockedRecoveryModule address
+        bytes32 salt = bytes32(uint256(9117));
+        address predictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(this));
+        
+        // Transaction params
+        address to = address(safeInstance);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(safeInstance.enableModule.selector, predictedTimelockedRecoveryModuleInstanceAddress);
+
+        // Safe.execTransaction
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
+
+        // Assert TX succeeded
+        assert(safeInstance.isModuleEnabled(predictedTimelockedRecoveryModuleInstanceAddress));
+
+        // Deploy WaymontSafeTimelockedRecoveryModule
+        timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(payable(Clones.cloneDeterministic(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt)));
+        timelockedRecoveryModuleInstance.initialize(safeInstance, recoverySigners, recoveryThreshold, recoverySigningTimelock, mockPolicyGuardianSigner);
+
+        // Test social recovery
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, false, true));
+    }
+
+    function testSocialRecoveryWithoutPolicyGuardianSigner() public {
+        // WaymontSafeTimelockedRecoveryModule params (use alternate deploymentNonce)
+        address[] memory recoverySigners = new address[](3);
+        recoverySigners[0] = FRIEND_ONE;
+        recoverySigners[1] = FRIEND_TWO;
+        recoverySigners[2] = FRIEND_THREE;
+        uint256 recoveryThreshold = 2;
+        uint256 recoverySigningTimelock = 3 days;
+        bool requirePolicyGuardianForRecovery = false;
+        uint256 alternateDeploymentNonce = 5555;
+
+        // Predict WaymontSafeTimelockedRecoveryModule address
+        bytes32 salt = keccak256(abi.encode(safeInstance, recoverySigners, recoveryThreshold, recoverySigningTimelock, requirePolicyGuardianForRecovery, alternateDeploymentNonce));
+        address predictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(waymontSafeFactory));
+        
+        // Transaction params
+        address to = address(safeInstance);
+        uint256 value = 0;
+        bytes memory data = abi.encodeWithSelector(safeInstance.enableModule.selector, predictedTimelockedRecoveryModuleInstanceAddress);
+
+        // Safe.execTransaction
+        _execTransaction(to, value, data, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
+
+        // Assert TX succeeded
+        assert(safeInstance.isModuleEnabled(address(timelockedRecoveryModuleInstance)));
+
+        // Deploy WaymontSafeTimelockedRecoveryModule
+        timelockedRecoveryModuleInstance = waymontSafeFactory.createTimelockedRecoveryModule(
+            safeInstance,
+            recoverySigners,
+            recoveryThreshold,
+            recoverySigningTimelock,
+            requirePolicyGuardianForRecovery,
+            alternateDeploymentNonce
+        );
+
+        // Test social recovery
+        _testSocialRecovery(TestSocialRecoveryOptions(false, false, false, false));
     }
 
     function _testSocialRecovery(TestSocialRecoveryOptions memory options) internal {
@@ -1030,6 +1112,13 @@ contract WaymontSafeFactoryTest is Test {
             bytes memory friendSignature1Corrupted = abi.encodePacked(friendSignature1);
             friendSignature1Corrupted[50] = friendSignature1Corrupted[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1Corrupted, friend1PolicyGuardianSignature);
+
+            // If option is set, test nonfunctional WaymontSafePolicyGuardianSigner
+            if (options.expectPolicyGuardianSignatureValidationFailure) {
+                vm.expectRevert("Policy guardian signature validation failed.");
+                timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1, friend1PolicyGuardianSignature);
+                return;
+            }
 
             // Queue signature #1
             timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1, friend1PolicyGuardianSignature);
