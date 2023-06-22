@@ -1008,7 +1008,7 @@ contract WaymontSafeFactoryTest is Test {
         bytes32 underlyingHash = keccak256(abi.encode(EXEC_TRANSACTION_TYPEHASH, safeInstance, moduleNonce, to, value, keccak256(data), operation));
         bytes32 txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), timelockedRecoveryModuleInstance.domainSeparator(), underlyingHash));
 
-        // To queue signaure #1:
+        // To queue signature #1:
         bytes memory friendSignature1;
         {
             // Generate recovery guardian signature #1
@@ -1021,9 +1021,23 @@ contract WaymontSafeFactoryTest is Test {
             (v, r, s) = vm.sign(POLICY_GUARDIAN_PRIVATE, queueSignatureMsgHash);
             bytes memory friend1PolicyGuardianSignature = abi.encodePacked(r, s, v);
 
+            // Expect revert if given wrong underlyingHash
+            vm.expectRevert("Invalid signature.");
+            timelockedRecoveryModuleInstance.queueSignature(bytes32(uint256(underlyingHash) + 1), friendSignature1, friend1PolicyGuardianSignature);
+
+            // Expect revert if given wrong signature
+            vm.expectRevert("Invalid signature.");
+            bytes memory friendSignature1Corrupted = abi.encodePacked(friendSignature1);
+            friendSignature1Corrupted[50] = friendSignature1Corrupted[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+            timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1Corrupted, friend1PolicyGuardianSignature);
+
             // Queue signature #1
             timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1, friend1PolicyGuardianSignature);
             assert(timelockedRecoveryModuleInstance.pendingSignatures(keccak256(friendSignature1)) == block.timestamp);
+
+            // Expect revert if signature already queued
+            vm.expectRevert("Signature already queued.");
+            timelockedRecoveryModuleInstance.queueSignature(underlyingHash, friendSignature1, friend1PolicyGuardianSignature);
         }
 
         // Prep to queue signature #2 but don't queue yet:
