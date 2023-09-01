@@ -81,6 +81,10 @@ contract WaymontSafeFactoryTest is Test {
         setUpWaymontSafe();
     }
 
+    function testSetUpTwice() public {
+        setUp();
+    }
+
     function setUpSafeProxyFactory() public {
         // Set up the SafeProxyFactory and Safe implementation/singleton
         safeProxyFactory = new SafeProxyFactory();
@@ -391,6 +395,80 @@ contract WaymontSafeFactoryTest is Test {
         assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
         assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
         assert(safeInstance.isModuleEnabled(address(timelockedRecoveryModuleInstance)));
+    }
+
+    function testCannotCreateAdvancedSignerWithMismatchingDeploymentNonce() public {
+        // WaymontSafeAdvancedSigner params
+        address[] memory underlyingOwners = new address[](3);
+        underlyingOwners[0] = ALICE;
+        underlyingOwners[1] = BOB;
+        underlyingOwners[2] = JOE;
+        uint256 underlyingThreshold = 2;
+        uint256 deploymentNonce = 5555;
+
+        // Failure
+        vm.expectRevert("The Safe is not owned by this Waymont signer contract.");
+        waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+    }
+
+    function testCannotCreateTimelockedRecoveryModuleWithMismatchingDeploymentNonce() public {
+        // WaymontSafeTimelockedRecoveryModule params
+        address[] memory recoverySigners = new address[](3);
+        recoverySigners[0] = FRIEND_ONE;
+        recoverySigners[1] = FRIEND_TWO;
+        recoverySigners[2] = FRIEND_THREE;
+        uint256 recoveryThreshold = 2;
+        uint256 recoverySigningTimelock = 3 days;
+        bool requirePolicyGuardianForRecovery = false;
+        uint256 deploymentNonce = 5555;
+
+        // Failure
+        vm.expectRevert("The Safe does not have this Waymont module enabled.");
+        waymontSafeFactory.createTimelockedRecoveryModule(
+            safeInstance,
+            recoverySigners,
+            recoveryThreshold,
+            recoverySigningTimelock,
+            requirePolicyGuardianForRecovery,
+            deploymentNonce
+        );
+    }
+
+    function testCannotCreateAdvancedSignerWithSameParamsTwice() public {
+        // WaymontSafeAdvancedSigner params
+        address[] memory underlyingOwners = new address[](3);
+        underlyingOwners[0] = ALICE;
+        underlyingOwners[1] = BOB;
+        underlyingOwners[2] = JOE;
+        uint256 underlyingThreshold = 2;
+        uint256 deploymentNonce = 4444;
+
+        // Failure
+        vm.expectRevert();
+        waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+    }
+
+    function testCannotCreateTimelockedRecoveryModuleWithSameParamsTwice() public {
+        // WaymontSafeTimelockedRecoveryModule params
+        address[] memory recoverySigners = new address[](3);
+        recoverySigners[0] = FRIEND_ONE;
+        recoverySigners[1] = FRIEND_TWO;
+        recoverySigners[2] = FRIEND_THREE;
+        uint256 recoveryThreshold = 2;
+        uint256 recoverySigningTimelock = 3 days;
+        bool requirePolicyGuardianForRecovery = false;
+        uint256 deploymentNonce = 4444;
+
+        // Failure
+        vm.expectRevert();
+        waymontSafeFactory.createTimelockedRecoveryModule(
+            safeInstance,
+            recoverySigners,
+            recoveryThreshold,
+            recoverySigningTimelock,
+            requirePolicyGuardianForRecovery,
+            deploymentNonce
+        );
     }
 
     function testCannotReinitializeAdvancedSigner() public {
