@@ -69,36 +69,33 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     /// MUST allow external calls.
     /// TODO: Pretty sure `_signature` is better kept as `memory` rather than `calldata` because it would waste gas to perform a large number of `calldatacopy` operations, right?
     function isValidSignature(bytes calldata _data, bytes memory _signature) external view returns (bytes4) {
+        // Cache to save gas
+        uint256 execTransactionDataOffset = threshold * 65 + 32;
+
         // Check if signatures only
-        if (_signature.length > threshold * 65) {
-            // Extract merkle tree exponent
-            // No need to check _signature.length because checked math does so
-            uint8 merkleTreeExponent;
-            uint256 merkleTreeExponentOffset = _signature.length - 1;
+        if (_signature.length > execTransactionDataOffset) {
+            // Extract execTransaction data
+            // Checked _signature.length above
+            bytes memory execTransactionDataLength;
 
             assembly {
-                merkleTreeExponent := byte(0, mload(add(_signature, merkleTreeExponentOffset)))
+                execTransactionDataLength := mload(add(_signature, execTransactionDataOffset))
             }
+
+            // Cache to save gas
+            uint256 merkleTreeOffset = execTransactionDataOffset + execTransactionDataLength + 32;
+
+            // Get merkle tree exponent
+            uint256 merkleTreeExponent = (_signature.length - merkleTreeOffset) / 32;
 
             // Extract signed data hash and execTransaction data length
-            // No need to check _signature.length because checked math does so
-            uint256 execTransactionDataLength;
-            bytes32 signedDataHash;
-            uint256 execTransactionDataLengthOffset = _signature.length - 65 - (32 * merkleTreeExponent);
-            uint256 signedDataHashOffset = _signature.length - 33 - (32 * merkleTreeExponent);
-
-            assembly {
-                signedDataHash := mload(add(_signature, signedDataHashOffset))
-                execTransactionDataLength := mload(add(_signature, execTransactionDataLengthOffset))
-            }
-
-            // Extract execTransaction data
-            // No need to check execTransactionDataLengthOffset >= execTransactionDataLength because checked math does so
+            // Checked _signature.length above
             bytes memory execTransactionData;
-            uint256 execTransactionDataOffset = execTransactionDataLengthOffset - execTransactionDataLength;
+            bytes32 signedDataHash;
 
             assembly {
                 execTransactionData := add(_signature, execTransactionDataOffset)
+                signedDataHash := mload(add(_signature, merkleTreeOffset))
             }
 
             // Decode execTransactionData
@@ -120,14 +117,17 @@ contract WaymontSafeExternalSigner is CheckSignatures {
 
             // If using merkle tree:
             if (merkleTreeExponent > 0) {
+                // Ensure merkle tree is in bounds
+                require(_signature.length >= merkleTreeOffset + (32 * merkleTreeExponent), "Merkle tree out of bounds in WaymontSafeExternalSigner.isValidSignature.");
+
                 // Extract siblings
                 for (uint256 i = 0; i < merkleTreeExponent; i++) {
-                    // No need to check _signature.length because checked math does so
+                    // No need for checked math because already done above
+                    // Checked _signature.length above
                     bytes32 node;
-                    uint256 nodeOffset = _signature.length - 1 - (32 * i);
 
                     assembly {
-                        node := mload(add(_signature, nodeOffset))
+                        node := mload(add(_signature, add(merkleTreeOffset, mul(32, i))))
                     }
 
                     newTxHash = node > newTxHash ? MerkleProofEfficientHash._efficientHash(newTxHash, node) : MerkleProofEfficientHash._efficientHash(node, newTxHash);
