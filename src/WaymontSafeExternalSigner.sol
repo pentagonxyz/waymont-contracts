@@ -69,74 +69,80 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     /// MUST allow external calls.
     /// TODO: Pretty sure `_signature` is better kept as `memory` rather than `calldata` because it would waste gas to perform a large number of `calldatacopy` operations, right?
     function isValidSignature(bytes calldata _data, bytes memory _signature) external view returns (bytes4) {
-        // Extract merkle tree exponent
-        // No need to check _signature.length because checked math does so
-        uint8 merkleTreeExponent;
-        uint256 merkleTreeExponentOffset = _signature.length - 1;
+        // Check if signatures only
+        if (_signature.length > threshold * 65) {
+            // Extract merkle tree exponent
+            // No need to check _signature.length because checked math does so
+            uint8 merkleTreeExponent;
+            uint256 merkleTreeExponentOffset = _signature.length - 1;
 
-        assembly {
-            merkleTreeExponent := byte(0, mload(add(_signature, merkleTreeExponentOffset)))
-        }
-
-        // Extract signed data hash and execTransaction data length
-        // No need to check _signature.length because checked math does so
-        uint256 execTransactionDataLength;
-        bytes32 signedDataHash;
-        uint256 execTransactionDataLengthOffset = _signature.length - 65 - (32 * merkleTreeExponent);
-        uint256 signedDataHashOffset = _signature.length - 33 - (32 * merkleTreeExponent);
-
-        assembly {
-            signedDataHash := mload(add(_signature, signedDataHashOffset))
-            execTransactionDataLength := mload(add(_signature, execTransactionDataLengthOffset))
-        }
-
-        // Extract execTransaction data
-        // No need to check execTransactionDataLengthOffset >= execTransactionDataLength because checked math does so
-        bytes memory execTransactionData;
-        uint256 execTransactionDataOffset = execTransactionDataLengthOffset - execTransactionDataLength;
-
-        assembly {
-            execTransactionData := add(_signature, execTransactionDataOffset)
-        }
-
-        // Decode execTransactionData
-        (address to, uint256 value, bytes32 dataHash, Enum.Operation operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 uniqueId) =
-            abi.decode(execTransactionData, (address, uint256, bytes32, Enum.Operation, uint256, uint256, uint256, address, address, uint256));
-
-        // Validate unique ID
-        require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has been blacklisted.");
-        
-        // Ensure hash of execTransactionData matches data passed from Safe
-        // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
-        bytes32 safeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
-        bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
-        require(keccak256(_data) == keccak256(txHashData), "Hash of execTransactionData does not match data passed from Safe.");
-
-        // Compute newTxHash
-        bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), execTransactionData);
-        bytes32 newTxHash = keccak256(newTxHashData);
-
-        // If using merkle tree:
-        if (merkleTreeExponent > 0) {
-            // Extract siblings
-            for (uint256 i = 0; i < merkleTreeExponent; i++) {
-                // No need to check _signature.length because checked math does so
-                bytes32 node;
-                uint256 nodeOffset = _signature.length - 1 - (32 * i);
-
-                assembly {
-                    node := mload(add(_signature, nodeOffset))
-                }
-
-                newTxHash = node > newTxHash ? MerkleProofEfficientHash._efficientHash(newTxHash, node) : MerkleProofEfficientHash._efficientHash(node, newTxHash);
+            assembly {
+                merkleTreeExponent := byte(0, mload(add(_signature, merkleTreeExponentOffset)))
             }
+
+            // Extract signed data hash and execTransaction data length
+            // No need to check _signature.length because checked math does so
+            uint256 execTransactionDataLength;
+            bytes32 signedDataHash;
+            uint256 execTransactionDataLengthOffset = _signature.length - 65 - (32 * merkleTreeExponent);
+            uint256 signedDataHashOffset = _signature.length - 33 - (32 * merkleTreeExponent);
+
+            assembly {
+                signedDataHash := mload(add(_signature, signedDataHashOffset))
+                execTransactionDataLength := mload(add(_signature, execTransactionDataLengthOffset))
+            }
+
+            // Extract execTransaction data
+            // No need to check execTransactionDataLengthOffset >= execTransactionDataLength because checked math does so
+            bytes memory execTransactionData;
+            uint256 execTransactionDataOffset = execTransactionDataLengthOffset - execTransactionDataLength;
+
+            assembly {
+                execTransactionData := add(_signature, execTransactionDataOffset)
+            }
+
+            // Decode execTransactionData
+            (address to, uint256 value, bytes32 dataHash, Enum.Operation operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 uniqueId) =
+                abi.decode(execTransactionData, (address, uint256, bytes32, Enum.Operation, uint256, uint256, uint256, address, address, uint256));
+
+            // Validate unique ID
+            require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has been blacklisted.");
+            
+            // Ensure hash of execTransactionData matches data passed from Safe
+            // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
+            bytes32 safeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
+            bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
+            require(keccak256(_data) == keccak256(txHashData), "Hash of execTransactionData does not match data passed from Safe.");
+
+            // Compute newTxHash
+            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), execTransactionData);
+            bytes32 newTxHash = keccak256(newTxHashData);
+
+            // If using merkle tree:
+            if (merkleTreeExponent > 0) {
+                // Extract siblings
+                for (uint256 i = 0; i < merkleTreeExponent; i++) {
+                    // No need to check _signature.length because checked math does so
+                    bytes32 node;
+                    uint256 nodeOffset = _signature.length - 1 - (32 * i);
+
+                    assembly {
+                        node := mload(add(_signature, nodeOffset))
+                    }
+
+                    newTxHash = node > newTxHash ? MerkleProofEfficientHash._efficientHash(newTxHash, node) : MerkleProofEfficientHash._efficientHash(node, newTxHash);
+                }
+            }
+
+            // Check signatures
+            checkSignatures(newTxHash, _signature);
+
+            // Blacklist unique ID's future use
+            functionCallUniqueIdBlacklist[uniqueId] = true;
+        } else {
+            // Check signatures
+            checkSignatures(keccak256(_data), _signature);
         }
-
-        // Check signatures
-        checkSignatures(newTxHash, _signature);
-
-        // Blacklist unique ID's future use
-        functionCallUniqueIdBlacklist[uniqueId] = true;
 
         // Return success by default
         return bytes4(0x20c13b0b);
