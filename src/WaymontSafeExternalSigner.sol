@@ -15,8 +15,8 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     bytes32 private constant DOMAIN_SEPARATOR_TYPEHASH = 0xed46087c30783a9d27be533e9e6a1f834cec6daf2cfb016c9ab60d791039f983;
 
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
-    // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes32 dataHash,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId)");`
-    bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0xaf55f21f4eb36902ca964429e1090344589acc9259f24de6c3d53f65cff9d42e;
+    // Computed as: `keccak256("WaymontSafeExternalSignerTx(bytes data)");`
+    bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0x889a7153169f421ec4278295c8c28df6cec258e8ce92727f0de29d5028d297e4;
 
     // @dev `SAFE_TX_TYPEHASH` copied from `Safe` contract.
     // Computed as: `keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)");`
@@ -74,7 +74,7 @@ contract WaymontSafeExternalSigner is CheckSignatures {
 
         // Check if signatures only
         if (_signature.length > execTransactionDataOffset) {
-            // Extract execTransaction data
+            // Extract execTransaction data length
             // Checked _signature.length above
             bytes memory execTransactionDataLength;
 
@@ -83,19 +83,17 @@ contract WaymontSafeExternalSigner is CheckSignatures {
             }
 
             // Cache to save gas
-            uint256 merkleTreeOffset = execTransactionDataOffset + execTransactionDataLength + 32;
+            uint256 merkleTreeOffset = execTransactionDataOffset + execTransactionDataLength;
 
             // Get merkle tree exponent
             uint256 merkleTreeExponent = (_signature.length - merkleTreeOffset) / 32;
 
-            // Extract signed data hash and execTransaction data length
+            // Extract execTransaction data
             // Checked _signature.length above
             bytes memory execTransactionData;
-            bytes32 signedDataHash;
 
             assembly {
                 execTransactionData := add(_signature, execTransactionDataOffset)
-                signedDataHash := mload(add(_signature, merkleTreeOffset))
             }
 
             // Decode execTransactionData
@@ -107,12 +105,12 @@ contract WaymontSafeExternalSigner is CheckSignatures {
             
             // Ensure hash of execTransactionData matches data passed from Safe
             // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
-            bytes32 safeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
+            bytes32 safeTxHash = keccak256(abi.encode(SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safe.nonce()));
             bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
             require(keccak256(_data) == keccak256(txHashData), "Hash of execTransactionData does not match data passed from Safe.");
 
             // Compute newTxHash
-            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), execTransactionData);
+            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, execTransactionData)));
             bytes32 newTxHash = keccak256(newTxHashData);
 
             // If using merkle tree:
@@ -121,7 +119,7 @@ contract WaymontSafeExternalSigner is CheckSignatures {
                 require(_signature.length >= merkleTreeOffset + (32 * merkleTreeExponent), "Merkle tree out of bounds in WaymontSafeExternalSigner.isValidSignature.");
 
                 // Extract siblings
-                for (uint256 i = 0; i < merkleTreeExponent; i++) {
+                for (uint256 i = 1; i <= merkleTreeExponent; i++) {
                     // No need for checked math because already done above
                     // Checked _signature.length above
                     bytes32 node;
