@@ -89,30 +89,40 @@ contract WaymontSafeExternalSigner is CheckSignatures {
             // Get merkle tree exponent
             uint256 merkleTreeExponent = (_signature.length - merkleTreeOffset) / 32;
 
-            // Extract execTransaction data
-            // Checked _signature.length above
-            bytes memory execTransactionData;
+            // Only reformat transaction data if requested
+            bytes32 newTxHash;
 
-            assembly {
-                execTransactionData := add(_signature, execTransactionDataOffset)
+            if (execTransactionDataLength > 0) {
+                // Extract execTransaction data
+                // Checked _signature.length above
+                bytes memory execTransactionData;
+
+                assembly {
+                    execTransactionData := add(_signature, execTransactionDataOffset)
+                }
+
+                // Decode execTransactionData
+                (address to, uint256 value, bytes32 dataHash, Enum.Operation operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 uniqueId) =
+                    abi.decode(execTransactionData, (address, uint256, bytes32, Enum.Operation, uint256, uint256, uint256, address, address, uint256));
+
+                // Validate unique ID
+                require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has been blacklisted.");
+                
+                // Ensure hash of execTransactionData matches data passed from Safe
+                // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
+                bytes32 safeTxHash = keccak256(abi.encode(SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safe.nonce()));
+                bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
+                require(keccak256(_data) == keccak256(txHashData), "Mismatch between execTransactionData and data passed from Safe.");
+
+                // Compute newTxHash
+                bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, execTransactionData)));
+                newTxHash = keccak256(newTxHashData);
+
+                // Blacklist unique ID's future use
+                functionCallUniqueIdBlacklist[uniqueId] = true;
+            } else {
+                newTxHash = keccak256(_data);
             }
-
-            // Decode execTransactionData
-            (address to, uint256 value, bytes32 dataHash, Enum.Operation operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 uniqueId) =
-                abi.decode(execTransactionData, (address, uint256, bytes32, Enum.Operation, uint256, uint256, uint256, address, address, uint256));
-
-            // Validate unique ID
-            require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has been blacklisted.");
-            
-            // Ensure hash of execTransactionData matches data passed from Safe
-            // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
-            bytes32 safeTxHash = keccak256(abi.encode(SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safe.nonce()));
-            bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
-            require(keccak256(_data) == keccak256(txHashData), "Mismatch between execTransactionData and data passed from Safe.");
-
-            // Compute newTxHash
-            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, execTransactionData)));
-            bytes32 newTxHash = keccak256(newTxHashData);
 
             // If using merkle tree:
             if (merkleTreeExponent > 0) {
@@ -135,9 +145,6 @@ contract WaymontSafeExternalSigner is CheckSignatures {
 
             // Check signatures
             checkSignatures(newTxHash, _signature);
-
-            // Blacklist unique ID's future use
-            functionCallUniqueIdBlacklist[uniqueId] = true;
         } else {
             // Check signatures
             checkSignatures(keccak256(_data), _signature);
