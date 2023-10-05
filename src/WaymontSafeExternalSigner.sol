@@ -55,7 +55,6 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     }
 
     /// @dev Returns the EIP-712 domain separator hash for this contract.
-    /// @dev TODO: Need to specify virtual/override or change name.
     /// TODO: Keep this contract in same repo or use new repo/subrepo/subfolder to differentiate between contract releases/versions?
     function domainSeparator() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, iv));
