@@ -9,42 +9,32 @@ import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProofEffic
 
 /// @title WaymontSafeExternalSigner
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
-contract WaymontSafeExternalSigner is CheckSignatures {
-    /// @dev Domain separator typehash with salt as the only parameter.
-    /// Computed as `keccak256("EIP712Domain(bytes32 salt)");`
-    bytes32 private constant DOMAIN_SEPARATOR_TYPEHASH = 0xed46087c30783a9d27be533e9e6a1f834cec6daf2cfb016c9ab60d791039f983;
+contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignatures {
+    // @dev `SAFE_TX_TYPEHASH` copied from `Safe` contract.
+    // Computed as: `keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)");`
+    bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
     // Computed as: `keccak256("WaymontSafeExternalSignerTx(bytes data)");`
     bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0x889a7153169f421ec4278295c8c28df6cec258e8ce92727f0de29d5028d297e4;
 
-    // @dev `SAFE_TX_TYPEHASH` copied from `Safe` contract.
-    // Computed as: `keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)");`
-    bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
-
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
-
-    /// @notice Deployment nonce/initialization vector for this contract. Used to ensure signatures created are unique.
-    /// @dev TODO: Remove `signers`/`threshold` from contract CREATE2 address instead to save gas?
-    bytes32 public iv;
 
     /// @dev Initializes the contract by setting the `Safe`, signers, and threshold.
     /// @param _safe The `Safe` of which this signer contract will be an owner.
     /// @param signers The signers underlying this signer contract.
     /// @param threshold The threshold required of signers underlying this signer contract.
-    /// @param deploymentNonce Deployment nonce used as a seed for the initialization vector for this contract. Used to ensure signatures created are unique.
     /// Can only be called once (because `setupOwners` can only be called once).
-    function initialize(Safe _safe, address[] calldata signers, uint256 threshold, uint256 deploymentNonce) external {
+    function initialize(Safe _safe, address[] calldata signers, uint256 threshold) external {
         // Input validation
         require(_safe.isOwner(address(this)), "The Safe is not owned by this Waymont signer contract.");
 
         // Call `setupOwners` (can only be called once)
         setupOwners(signers, threshold);
 
-        // Set the `Safe` and IV
+        // Set the `Safe`
         safe = _safe;
-        iv = MerkleProofEfficientHash._efficientHash(bytes32(bytes20(address(safe))), bytes32(deploymentNonce));
     }
 
     /// @notice Blacklists a function call unique ID.
@@ -52,12 +42,6 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     function blacklistFunctionCall(uint256 uniqueId) external {
         require(msg.sender == address(safe), "Sender is not the safe.");
         functionCallUniqueIdBlacklist[uniqueId] = true;
-    }
-
-    /// @dev Returns the EIP-712 domain separator hash for this contract.
-    /// TODO: Keep this contract in same repo or use new repo/subrepo/subfolder to differentiate between contract releases/versions?
-    function domainSeparator() public view returns (bytes32) {
-        return keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, iv));
     }
 
     /// @notice Signature validation function used by the `Safe` overlying this contract to validate underlying signers attached to this contract.

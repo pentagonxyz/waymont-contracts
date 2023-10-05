@@ -33,7 +33,7 @@ contract WaymontSafeFactory {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, deploymentNonce));
             instance = WaymontSafeExternalSigner(payable(Clones.cloneDeterministic(externalSignerImplementation, salt)));
         }
-        instance.initialize(safe, signers, threshold, deploymentNonce);
+        instance.initialize(safe, signers, threshold);
         return instance;
     }
 }
