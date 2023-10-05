@@ -70,12 +70,13 @@ contract WaymontSafeExternalSigner is CheckSignatures {
     /// TODO: Pretty sure `_signature` is better kept as `memory` rather than `calldata` because it would waste gas to perform a large number of `calldatacopy` operations, right?
     function isValidSignature(bytes calldata _data, bytes memory _signature) external view returns (bytes4) {
         // Cache to save gas
-        uint256 execTransactionDataOffset = threshold * 65 + 32;
+        uint256 execTransactionDataLengthOffset = threshold * 65;
 
         // Check if signatures only
-        if (_signature.length > execTransactionDataOffset) {
+        if (_signature.length > execTransactionDataLengthOffset) {
             // Extract execTransaction data length
             // Checked _signature.length above
+            uint256 execTransactionDataOffset = execTransactionDataLengthOffset + 32;
             bytes memory execTransactionDataLength;
 
             assembly {
