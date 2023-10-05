@@ -107,7 +107,7 @@ contract WaymontSafeExternalSigner is CheckSignatures {
             // TODO: Does it waste gas to store txHashData as a memory variable as opposed to only declaring a variable for its hash?
             bytes32 safeTxHash = keccak256(abi.encode(SAFE_TX_TYPEHASH, to, value, dataHash, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safe.nonce()));
             bytes memory txHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), safe.domainSeparator(), safeTxHash);
-            require(keccak256(_data) == keccak256(txHashData), "Hash of execTransactionData does not match data passed from Safe.");
+            require(keccak256(_data) == keccak256(txHashData), "Mismatch between execTransactionData and data passed from Safe.");
 
             // Compute newTxHash
             bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, execTransactionData)));
