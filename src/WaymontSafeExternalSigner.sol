@@ -2,14 +2,14 @@
 pragma solidity 0.8.19;
 
 import "lib/safe-contracts/contracts/Safe.sol";
-import "lib/safe-contracts/contracts/CheckSignatures.sol";
+import "lib/safe-contracts/contracts/CheckSignaturesEIP1271.sol";
 import "lib/safe-contracts/contracts/common/Enum.sol";
 
 import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProofEfficientHash.sol";
 
 /// @title WaymontSafeExternalSigner
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
-contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignatures {
+contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1271 {
     // @dev `SAFE_TX_TYPEHASH` copied from `Safe` contract.
     // Computed as: `keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)");`
     bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
@@ -66,11 +66,14 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignatures {
                 execTransactionDataLength := mload(add(_signature, execTransactionDataOffset))
             }
 
-            // Cache to save gas
-            uint256 merkleTreeOffset = execTransactionDataOffset + execTransactionDataLength;
+            // Extract merkle tree exponent
+            uint256 merkleTreeOffset = execTransactionDataOffset + execTransactionDataLength + 32;
+            require(_signature.length >= merkleTreeOffset, "Merkle tree exponent out of bounds.");
+            uint256 merkleTreeExponent;
 
-            // Get merkle tree exponent
-            uint256 merkleTreeExponent = (_signature.length - merkleTreeOffset) / 32;
+            assembly {
+                merkleTreeExponent := mload(add(_signature, merkleTreeOffset))
+            }
 
             // Only reformat transaction data if requested
             bytes32 newTxHash;
@@ -110,7 +113,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignatures {
             // If using merkle tree:
             if (merkleTreeExponent > 0) {
                 // Ensure merkle tree is in bounds
-                require(_signature.length >= merkleTreeOffset + (32 * merkleTreeExponent), "Merkle tree out of bounds in WaymontSafeExternalSigner.isValidSignature.");
+                require(_signature.length >= merkleTreeOffset + (32 * merkleTreeExponent), "Merkle tree out of bounds.");
 
                 // Extract siblings
                 for (uint256 i = 1; i <= merkleTreeExponent; i++) {
