@@ -68,29 +68,31 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         uint256 gasPrice,
         address gasToken,
         address payable refundReceiver,
-        bytes memory safeSignatures,
-        bytes memory externalSignatures,
+        bytes[2] memory signatures,
         uint256 uniqueId,
         bytes32[] memory merkleProof
     ) external returns (bool success) {
         // Validate unique ID
         require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has already been used or has been blacklisted.");
 
-        // Compute newTxHash
-        bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
-        bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash);
-        bytes32 newTxHash = keccak256(newTxHashData);
+        // Scope to avoid "stack too deep"
+        {
+            // Compute newTxHash
+            bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
+            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash);
+            bytes32 newTxHash = keccak256(newTxHashData);
 
-        // Process merkle proof
-        newTxHash = MerkleProof.processProof(merkleProof, newTxHash);
+            // Process merkle proof
+            newTxHash = MerkleProof.processProof(merkleProof, newTxHash);
 
-        // Check signatures
-        checkSignatures(newTxHash, externalSignatures);
+            // Check signatures
+            checkSignatures(newTxHash, signatures[1]);
+        }
 
         // Blacklist unique ID's future use
         functionCallUniqueIdBlacklist[uniqueId] = true;
 
         // Execute the transaction
-        return safe.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safeSignatures);
+        return safe.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures[0]);
     }
 }
