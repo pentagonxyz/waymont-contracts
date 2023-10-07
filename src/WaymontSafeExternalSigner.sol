@@ -2,10 +2,10 @@
 pragma solidity 0.8.19;
 
 import "lib/safe-contracts/contracts/Safe.sol";
+import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 import "lib/safe-contracts/contracts/CheckSignaturesEIP1271.sol";
 import "lib/safe-contracts/contracts/common/Enum.sol";
 
-// TODO: Make sure to remove MerkleProofEfficientHash.sol from safe-contracts and then install the updated safe-contracts in waymont-contracts
 import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol";
 
 /// @title WaymontSafeExternalSigner
