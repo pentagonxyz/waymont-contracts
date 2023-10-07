@@ -56,6 +56,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         return bytes4(0x20c13b0b);
     }
 
+    /// @notice Additional parameters used by `WaymontSafeExternalSigner.execTransaction` (that are not part of `Safe.execTransaction`).
     struct AdditionalExecTransactionParams {
         bytes externalSignatures;
         uint256 uniqueId;
