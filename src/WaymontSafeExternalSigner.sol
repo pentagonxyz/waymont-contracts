@@ -56,6 +56,12 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         return bytes4(0x20c13b0b);
     }
 
+    struct AdditionalExecTransactionParams {
+        bytes externalSignatures;
+        uint256 uniqueId;
+        bytes32[] merkleProof;
+    }
+
     /// @notice Proxy for `Safe.execTransaction` allowing execution of transactions signed through merkle trees and without incremental nonces.
     /// @dev TODO: Use `calldata` or `memory` to save gas?
     function execTransaction(
@@ -68,31 +74,32 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         uint256 gasPrice,
         address gasToken,
         address payable refundReceiver,
-        bytes[2] memory signatures,
-        uint256 uniqueId,
-        bytes32[] memory merkleProof
+        bytes memory safeSignatures,
+        AdditionalExecTransactionParams memory additionalParams
     ) external returns (bool success) {
         // Validate unique ID
-        require(!functionCallUniqueIdBlacklist[uniqueId], "Function call unique ID has already been used or has been blacklisted.");
+        // TODO: Save gas by caching `additionalParams` in memory?
+        // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
+        require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
 
         // Scope to avoid "stack too deep"
         {
             // Compute newTxHash
-            bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, uniqueId));
+            bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, additionalParams.uniqueId));
             bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash);
             bytes32 newTxHash = keccak256(newTxHashData);
 
             // Process merkle proof
-            newTxHash = MerkleProof.processProof(merkleProof, newTxHash);
+            newTxHash = MerkleProof.processProof(additionalParams.merkleProof, newTxHash);
 
             // Check signatures
-            checkSignatures(newTxHash, signatures[1]);
+            checkSignatures(newTxHash, additionalParams.externalSignatures);
         }
 
         // Blacklist unique ID's future use
-        functionCallUniqueIdBlacklist[uniqueId] = true;
+        functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
         // Execute the transaction
-        return safe.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures[0]);
+        return safe.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safeSignatures);
     }
 }
