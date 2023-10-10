@@ -65,6 +65,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
 
     /// @notice Proxy for `Safe.execTransaction` allowing execution of transactions signed through merkle trees and without incremental nonces.
     /// @dev TODO: Use `calldata` or `memory` to save gas?
+    /// @param additionalParams See struct type for more info. WARNING: If using a merkle tree, sure to hash each merkle tree leaf with a unique salt (adding another layer to the tree) to prevent the unauthorized submission of sibling hashes once the root signature has been revealed.
     function execTransaction(
         address to,
         uint256 value,
