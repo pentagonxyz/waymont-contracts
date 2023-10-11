@@ -32,14 +32,15 @@ contract WaymontSafeFactory {
         Safe safe,
         address[] calldata signers,
         uint256 threshold,
+        bool requirePolicyGuardian,
         uint256 deploymentNonce
     ) external returns (WaymontSafeExternalSigner) {
         WaymontSafeExternalSigner instance;
         {
-            bytes32 salt = keccak256(abi.encode(safe, signers, threshold, deploymentNonce));
+            bytes32 salt = keccak256(abi.encode(safe, signers, threshold, requirePolicyGuardian, deploymentNonce));
             instance = WaymontSafeExternalSigner(payable(Clones.cloneDeterministic(externalSignerImplementation, salt)));
         }
-        instance.initialize(safe, signers, threshold, policyGuardianSigner);
+        instance.initialize(safe, signers, threshold, requirePolicyGuardian ? policyGuardianSigner : WaymontSafePolicyGuardianSigner(address(0)));
         return instance;
     }
 }
