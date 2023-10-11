@@ -8,9 +8,10 @@ import "lib/safe-contracts/contracts/Safe.sol";
 import "./WaymontSafeExternalSigner.sol";
 import "./WaymontSafePolicyGuardianSigner.sol";
 
-/// @title WaymontSafeFactory
+/// @title WaymontSafeExternalSignerFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
-contract WaymontSafeFactory {
+/// @dev Using the Safe Singleton Factory is recommended method of deployment of this factory: https://github.com/safe-global/safe-singleton-factory
+contract WaymontSafeExternalSignerFactory {
     /// @notice Address of the `WaymontSafePolicyGuardianSigner` contract.
     WaymontSafePolicyGuardianSigner public immutable policyGuardianSigner;
 
@@ -26,7 +27,7 @@ contract WaymontSafeFactory {
 
     /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeExternalSigner`.
     /// @dev See `WaymontSafeExternalSigner` for other params.
-    /// @param deploymentNonce The unique nonce for the deployed signer contract. If the contract address of the `WaymontSafeFactory` and the `WaymontSafeAdvancedSigner` implementation is the same across each chain (which it will be if the same private key deploys them with the same nonces), then the contract addresses of the `WaymontSafeAdvancedSigner` instances created will also be the same across all chains according to the combination of initialization parameters (`safe`, `signers`, `threshold`, and `deploymentNonce`).
+    /// @param deploymentNonce The unique nonce for the deployed signer contract. If the contract address of the `WaymontSafeExternalSignerFactory` is the same across each chain (which it will be if the same private key deploys them with the same nonce), then the contract addresses of the `WaymontSafeExternalSigner` instances created will also be the same across all chains according to the combination of initialization parameters (`safe`, `signers`, `threshold`, `requirePolicyGuardian`, and `deploymentNonce`).
     /// @return `WaymontSafeExternalSigner` interface for the deployed proxy.
     function createExternalSigner(
         Safe safe,
