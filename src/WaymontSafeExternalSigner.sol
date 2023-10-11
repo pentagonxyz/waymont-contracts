@@ -12,8 +12,8 @@ import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol"
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
 contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1271 {
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
-    // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId)");`
-    bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0xec4b32503cab7179a0e04742ad56fa15cbb52ef3b7f2648773edf851b4ac43c1;
+    // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId,uint256 deadline)");`
+    bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0x888ae35d09ea6770cd5ac96db02e4e4edb39e7f0a724fba9ea1c5f45a920191e;
 
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
@@ -60,6 +60,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     struct AdditionalExecTransactionParams {
         bytes externalSignatures;
         uint256 uniqueId;
+        uint256 deadline;
         bytes32[] merkleProof;
     }
 
@@ -79,15 +80,18 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         bytes memory safeSignatures,
         AdditionalExecTransactionParams memory additionalParams
     ) external returns (bool success) {
+        // Validate deadline
+        require(block.timestamp <= additionalParams.deadline, "This TX is expired/past its deadline.");
+
         // Validate unique ID
-        // TODO: Save gas by caching `additionalParams` in memory?
+        // TODO: Save gas by caching `additionalParams.uniqueId` in memory?
         // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
         require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
 
         // Scope to avoid "stack too deep"
         {
             // Compute newTxHash
-            bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, additionalParams.uniqueId));
+            bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, additionalParams.uniqueId, additionalParams.deadline));
             bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash);
             bytes32 newTxHash = keccak256(newTxHashData);
 
