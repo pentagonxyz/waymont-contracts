@@ -11,26 +11,28 @@ import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol"
 import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeExternalSigner
-/// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
+/// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts) allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
 contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1271 {
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
     // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId,uint256 groupUniqueId,uint256 deadline)");`
     bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0xf641ab1aa14257ef40a4f6202602bc27847e79f0aa3bac95aa170c03c99d6290;
 
     /// @notice Address of the `WaymontSafePolicyGuardianSigner` contract.
+    /// @dev Whether or not this variable is set controls whether or not this contract should ensure that the policy guardian is enabled on the Safe when making reusable function calls.
     WaymontSafePolicyGuardianSigner public policyGuardianSigner;
 
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
 
-    /// @notice Quantity of gas allocated to reusable smart actions.
     uint256 public reuseableFunctionCallGasTank;
+    /// @notice Quantity of gas (in ETH) allocated to reusable smart actions.
 
     /// @dev Initializes the contract by setting the `Safe`, signers, and threshold.
+    /// Can only be called once (because `setupOwners` can only be called once).
     /// @param _safe The `Safe` of which this signer contract will be an owner.
     /// @param signers The signers underlying this signer contract.
     /// @param threshold The threshold required of signers underlying this signer contract.
-    /// Can only be called once (because `setupOwners` can only be called once).
+    /// @param _policyGuardianSigner Whether or not this variable is set controls whether or not this contract should ensure that the policy guardian is enabled on the Safe when making reusable function calls. Currently there are no plans to ever set this to false but keeping it as an option keeps the contracts flexible (so they can be used without the policy guardian if desired in the future).
     function initialize(Safe _safe, address[] calldata signers, uint256 threshold, WaymontSafePolicyGuardianSigner _policyGuardianSigner) external {
         // Input validation
         require(_safe.isOwner(address(this)), "The Safe is not owned by this Waymont signer contract.");
@@ -72,6 +74,11 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     }
 
     /// @notice Additional parameters used by `WaymontSafeExternalSigner.execTransaction` (that are not part of `Safe.execTransaction`).
+    /// @param externalSignatures The signatures from this `WaymontSafeExternalSigner` contract's set of signers (to be validated by this contract).
+    /// @param uniqueId If specified (as greater than 0), acts as a single-use, non-incremental nonce (that can be blacklisted). WARNING: If using a merkle tree, make sure to use random `uniqueId` values to prevent the unauthorized submission of transactions using signatures and merkle proofs that have already been revealed. If you are using reusable function calls, this is not an option, so you must rely on the policy guardian (which the function below ensures is enabled if set in this contract's storage) or, alternatively, the presence of signers other than this contract that use normal single-use signatures.
+    /// @param groupUniqueId If specified (as greater than 0), acts as a multi-use, non-incremental unique ID that can be blacklisted. Must specify if `uniqueId` is not specified.
+    /// @param deadline Transactions must be executed before the deadline. Set to `0xFF00000000000000000000000000000000000000000000000000000000000000` for no deadline (saves gas over using `type(uint256).max` due to the presence of more zero bytes (cheaper) over non-zero bytes in function calldata).
+    /// @param merkleProof Array containing the sibling hashes on the branch from the leaf to the root of the merkle tree.
     struct AdditionalExecTransactionParams {
         bytes externalSignatures;
         uint256 uniqueId;
@@ -80,8 +87,11 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         bytes32[] merkleProof;
     }
 
-    /// @notice Proxy for `Safe.execTransaction` allowing execution of transactions signed through merkle trees and without incremental nonces.
-    /// @param additionalParams See struct type for more info. WARNING: If using a merkle tree, make sure to use random `uniqueId` values to prevent the unauthorized submission of transactions using signatures and merkle proofs that have already been revealed.
+    /// @notice Proxy for `Safe.execTransaction` allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
+    /// @dev See `Safe.execTransaction` for a description of the first 10 params.
+    /// WARNING: If using a merkle tree, make sure to use random `uniqueId` values to prevent the unauthorized submission of transactions using signatures and merkle proofs that have already been revealed. If you are using reusable function calls, this is not an option, so you must rely on the policy guardian (which the function below ensures is enabled if set in this contract's storage) or, alternatively, the presence of signers other than this contract that use normal single-use signatures.
+    /// NOTE: Gas tank deductions for reusable function calls are based on the (estimated) `safeTxGas + baseGas`, unlike the refunds themselves, which are based on the (actual) `gasUsed + baseGas`.
+    /// @param additionalParams See struct type above for more info.
     function execTransaction(
         address to,
         uint256 value,
@@ -119,7 +129,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
 
         // If uniqueId is reusable, subtract from gas tank (checked math will revert if not enough)
         if (additionalParams.uniqueId == 0) reuseableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice || gasToken != address(0) ? gasPrice : tx.gasprice);
-        // If uniqueId is not reuseable, blacklist unique ID's future use
+        // If uniqueId is not reusable, blacklist unique ID's future use
         else functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
         // Execute the transaction

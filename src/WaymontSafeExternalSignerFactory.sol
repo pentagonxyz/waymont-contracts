@@ -18,7 +18,7 @@ contract WaymontSafeExternalSignerFactory {
     /// @dev `WaymontSafeExternalSigner` implementation/logic contract address.
     address public immutable externalSignerImplementation;
 
-    /// @dev Constructor to initialize the factory by deploying the 3 other Waymont contracts.
+    /// @dev Constructor to initialize the factory by validating and setting the `WaymontSafePolicyGuardianSigner` and deploying the `WaymontSafeExternalSigner`.
     constructor(WaymontSafePolicyGuardianSigner _policyGuardianSigner) {
         _policyGuardianSigner.policyGuardian();
         policyGuardianSigner = _policyGuardianSigner;
@@ -27,21 +27,22 @@ contract WaymontSafeExternalSignerFactory {
 
     /// @notice Deploys a (non-upgradeable) minimal proxy contract over `WaymontSafeExternalSigner`.
     /// @dev See `WaymontSafeExternalSigner` for other params.
+    /// @param requirePolicyGuardianForReusableCalls Whether or not the contract should ensure that the policy guardian is enabled on the Safe when making reusable function calls. Currently there are no plans to ever set this to false but keeping it as an option keeps the contracts flexible (so they can be used without the policy guardian if desired in the future).
     /// @param deploymentNonce The unique nonce for the deployed signer contract. If the contract address of the `WaymontSafeExternalSignerFactory` is the same across each chain (which it will be if the same private key deploys them with the same nonce), then the contract addresses of the `WaymontSafeExternalSigner` instances created will also be the same across all chains according to the combination of initialization parameters (`safe`, `signers`, `threshold`, `requirePolicyGuardian`, and `deploymentNonce`).
     /// @return `WaymontSafeExternalSigner` interface for the deployed proxy.
     function createExternalSigner(
         Safe safe,
         address[] calldata signers,
         uint256 threshold,
-        bool requirePolicyGuardian,
+        bool requirePolicyGuardianForReusableCalls,
         uint256 deploymentNonce
     ) external returns (WaymontSafeExternalSigner) {
         WaymontSafeExternalSigner instance;
         {
-            bytes32 salt = keccak256(abi.encode(safe, signers, threshold, requirePolicyGuardian, deploymentNonce));
+            bytes32 salt = keccak256(abi.encode(safe, signers, threshold, requirePolicyGuardianForReusableCalls, deploymentNonce));
             instance = WaymontSafeExternalSigner(payable(Clones.cloneDeterministic(externalSignerImplementation, salt)));
         }
-        instance.initialize(safe, signers, threshold, requirePolicyGuardian ? policyGuardianSigner : WaymontSafePolicyGuardianSigner(address(0)));
+        instance.initialize(safe, signers, threshold, requirePolicyGuardianForReusableCalls ? policyGuardianSigner : WaymontSafePolicyGuardianSigner(address(0)));
         return instance;
     }
 }
