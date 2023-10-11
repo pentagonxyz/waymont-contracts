@@ -109,7 +109,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
 
         // If the unique ID is reusable and policy guardian is set, validate that policy guardian signature is required
         if (additionalParams.uniqueId == 0 && address(policyGuardianSigner) != address(0))
-            require(safe.isOwner(policyGuardianSigner) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
+            require(safe.isOwner(address(policyGuardianSigner)) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
 
         // Scope to avoid "stack too deep"
         {
