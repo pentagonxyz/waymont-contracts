@@ -115,7 +115,7 @@ contract WaymontSafeFactoryTest is Test {
 
         // Check implementation singleton thresholds
         assert(WaymontSafeAdvancedSigner(waymontSafeFactory.advancedSignerImplementation()).getThreshold() == 1);
-        assert(WaymontSafeAdvancedSigner(waymontSafeFactory.timelockedRecoveryModuleImplementation()).getThreshold() == 1);
+        assert(WaymontSafeTimelockedRecoveryModule(waymontSafeFactory.timelockedRecoveryModuleImplementation()).getThreshold() == 1);
 
         // Fail to call onlyPolicyGuardianManager functions from an address that is not the manager
         vm.expectRevert("Sender is not the policy guardian manager.");
