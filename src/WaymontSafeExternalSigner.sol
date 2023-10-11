@@ -118,7 +118,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         }
 
         // If uniqueId is reusable, subtract from gas tank (checked math will revert if not enough)
-        if (additionalParams.uniqueId == 0) reuseableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice ? gasPrice : tx.gasprice);
+        if (additionalParams.uniqueId == 0) reuseableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice || gasToken != address(0) ? gasPrice : tx.gasprice);
         // If uniqueId is not reuseable, blacklist unique ID's future use
         else functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
