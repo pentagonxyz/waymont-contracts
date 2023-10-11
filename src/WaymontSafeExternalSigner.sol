@@ -103,6 +103,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         // Validate unique ID
         // TODO: Save gas by caching `additionalParams.uniqueId` in memory?
         // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
+        require(additionalParams.uniqueId > 0 || additionalParams.groupUniqueId > 0, "Must specify either a unique ID or group unique ID to have the ability to prevent the repeat use of this function call.");
         if (additionalParams.uniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
         if (additionalParams.groupUniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.groupUniqueId], "Function call group unique ID has been blacklisted.");
 
