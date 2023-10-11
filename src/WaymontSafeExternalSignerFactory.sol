@@ -6,6 +6,7 @@ import "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "lib/safe-contracts/contracts/Safe.sol";
 
 import "./WaymontSafeExternalSigner.sol";
+import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.

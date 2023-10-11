@@ -8,12 +8,17 @@ import "lib/safe-contracts/contracts/common/Enum.sol";
 
 import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol";
 
+import "./WaymontSafePolicyGuardianSigner.sol";
+
 /// @title WaymontSafeExternalSigner
 /// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
 contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1271 {
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
     // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId,uint256 deadline)");`
     bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0x888ae35d09ea6770cd5ac96db02e4e4edb39e7f0a724fba9ea1c5f45a920191e;
+
+    /// @notice Address of the `WaymontSafePolicyGuardianSigner` contract.
+    WaymontSafePolicyGuardianSigner public policyGuardianSigner;
 
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
@@ -26,15 +31,16 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     /// @param signers The signers underlying this signer contract.
     /// @param threshold The threshold required of signers underlying this signer contract.
     /// Can only be called once (because `setupOwners` can only be called once).
-    function initialize(Safe _safe, address[] calldata signers, uint256 threshold) external {
+    function initialize(Safe _safe, address[] calldata signers, uint256 threshold, WaymontSafePolicyGuardianSigner _policyGuardianSigner) external {
         // Input validation
         require(_safe.isOwner(address(this)), "The Safe is not owned by this Waymont signer contract.");
 
         // Call `setupOwners` (can only be called once)
         setupOwners(signers, threshold);
 
-        // Set the `Safe`
+        // Set the `Safe` and `WaymontSafePolicyGuardianSigner`
         safe = _safe;
+        policyGuardianSigner = _policyGuardianSigner;
     }
 
     /// @notice Blacklists a function call unique ID.
