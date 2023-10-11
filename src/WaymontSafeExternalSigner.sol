@@ -24,8 +24,8 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
 
-    uint256 public reuseableFunctionCallGasTank;
     /// @notice Quantity of gas (in ETH) allocated to reusable smart actions.
+    uint256 public reusableFunctionCallGasTank;
 
     /// @dev Initializes the contract by setting the `Safe`, signers, and threshold.
     /// Can only be called once (because `setupOwners` can only be called once).
@@ -56,7 +56,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     /// @param value The amount of ETH that should be in the gas tank.
     function setGasTank(uint256 value) external {
         require(msg.sender == address(safe), "Sender is not the safe.");
-        reuseableFunctionCallGasTank = value;
+        reusableFunctionCallGasTank = value;
     }
 
     /// @notice Signature validation function used by the `Safe` overlying this contract to validate underlying signers attached to this contract.
@@ -128,7 +128,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         }
 
         // If uniqueId is reusable, subtract from gas tank (checked math will revert if not enough)
-        if (additionalParams.uniqueId == 0) reuseableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice || gasToken != address(0) ? gasPrice : tx.gasprice);
+        if (additionalParams.uniqueId == 0) reusableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice || gasToken != address(0) ? gasPrice : tx.gasprice);
         // If uniqueId is not reusable, blacklist unique ID's future use
         else functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
