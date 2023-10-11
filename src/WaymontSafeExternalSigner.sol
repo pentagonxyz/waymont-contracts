@@ -18,6 +18,9 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     /// @notice Blacklist for function calls that have already been dispatched or that have been revoked.
     mapping(uint256 => bool) public functionCallUniqueIdBlacklist;
 
+    /// @notice Quantity of gas allocated to reusable smart actions.
+    uint256 public reuseableFunctionCallGasTank;
+
     /// @dev Initializes the contract by setting the `Safe`, signers, and threshold.
     /// @param _safe The `Safe` of which this signer contract will be an owner.
     /// @param signers The signers underlying this signer contract.
@@ -41,6 +44,13 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         functionCallUniqueIdBlacklist[uniqueId] = true;
     }
 
+    /// @notice Sets the gas tank available to reusable function calls.
+    /// @param value The amount of ETH that should be in the gas tank.
+    function setGasTank(uint256 value) external {
+        require(msg.sender == address(safe), "Sender is not the safe.");
+        reuseableFunctionCallGasTank = value;
+    }
+
     /// @notice Signature validation function used by the `Safe` overlying this contract to validate underlying signers attached to this contract.
     /// @param _data Data signed in `_signature`.
     /// @param _signature Signature byte array associated with `_data`.
@@ -60,6 +70,7 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     struct AdditionalExecTransactionParams {
         bytes externalSignatures;
         uint256 uniqueId;
+        uint256 groupUniqueId;
         uint256 deadline;
         bytes32[] merkleProof;
     }
@@ -86,14 +97,18 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         // Validate unique ID
         // TODO: Save gas by caching `additionalParams.uniqueId` in memory?
         // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
-        require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
+        if (additionalParams.uniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
+        if (additionalParams.groupUniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.groupUniqueId], "Function call group unique ID has been blacklisted.");
+
+        // If the unique ID is reusable and policy guardian is set, validate that policy guardian signature is required
+        if (additionalParams.uniqueId == 0 && address(policyGuardianSigner) != address(0))
+            require(safe.isOwner(policyGuardianSigner) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
 
         // Scope to avoid "stack too deep"
         {
             // Compute newTxHash
             bytes32 newSafeTxHash = keccak256(abi.encode(EXTERNAL_SIGNER_SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, additionalParams.uniqueId, additionalParams.deadline));
-            bytes memory newTxHashData = abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash);
-            bytes32 newTxHash = keccak256(newTxHashData);
+            bytes32 newTxHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), newSafeTxHash));
 
             // Process merkle proof
             newTxHash = MerkleProof.processProof(additionalParams.merkleProof, newTxHash);
@@ -102,8 +117,10 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
             checkSignatures(newTxHash, additionalParams.externalSignatures);
         }
 
-        // Blacklist unique ID's future use
-        functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
+        // If uniqueId is reusable, subtract from gas tank (checked math will revert if not enough)
+        if (additionalParams.uniqueId == 0) reuseableFunctionCallGasTank -= (baseGas + safeTxGas) * (gasPrice < tx.gasprice ? gasPrice : tx.gasprice);
+        // If uniqueId is not reuseable, blacklist unique ID's future use
+        else functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
         // Execute the transaction
         // Hashes are automatically approved by the sender with v == 1 and r == approver (this contract)

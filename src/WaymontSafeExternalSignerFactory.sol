@@ -10,11 +10,16 @@ import "./WaymontSafeExternalSigner.sol";
 /// @title WaymontSafeFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
 contract WaymontSafeFactory {
+    /// @notice Address of the `WaymontSafePolicyGuardianSigner` contract.
+    WaymontSafePolicyGuardianSigner public immutable policyGuardianSigner;
+
     /// @dev `WaymontSafeExternalSigner` implementation/logic contract address.
     address public immutable externalSignerImplementation;
 
     /// @dev Constructor to initialize the factory by deploying the 3 other Waymont contracts.
-    constructor() {
+    constructor(WaymontSafePolicyGuardianSigner _policyGuardianSigner) {
+        _policyGuardianSigner.policyGuardian();
+        policyGuardianSigner = _policyGuardianSigner;
         externalSignerImplementation = address(new WaymontSafeExternalSigner());
     }
 
@@ -33,7 +38,7 @@ contract WaymontSafeFactory {
             bytes32 salt = keccak256(abi.encode(safe, signers, threshold, deploymentNonce));
             instance = WaymontSafeExternalSigner(payable(Clones.cloneDeterministic(externalSignerImplementation, salt)));
         }
-        instance.initialize(safe, signers, threshold);
+        instance.initialize(safe, signers, threshold, policyGuardianSigner);
         return instance;
     }
 }
