@@ -102,6 +102,8 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         functionCallUniqueIdBlacklist[additionalParams.uniqueId] = true;
 
         // Execute the transaction
+        // Hashes are automatically approved by the sender with v == 1 and r == approver (this contract)
+        // See line 316-321 of safe-contracts v1.4.0 Safe.sol: https://github.com/safe-global/safe-contracts/blob/v1.4.0/contracts/Safe.sol#L316-L321
         return safe.execTransaction(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, safeSignatures);
     }
 }
