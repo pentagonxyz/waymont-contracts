@@ -63,7 +63,6 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     /// @dev MUST return the bytes4 magic value 0x20c13b0b when function passes.
     /// MUST NOT modify state (using STATICCALL for solc < 0.5, view modifier for solc > 0.5).
     /// MUST allow external calls.
-    /// TODO: Pretty sure `_signature` is better kept as `memory` rather than `calldata` because it would waste gas to perform a large number of `calldatacopy` operations, right?
     function isValidSignature(bytes calldata _data, bytes memory _signature) external view returns (bytes4) {
         // Check signatures
         checkSignatures(keccak256(_data), _signature);
@@ -82,7 +81,6 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
     }
 
     /// @notice Proxy for `Safe.execTransaction` allowing execution of transactions signed through merkle trees and without incremental nonces.
-    /// @dev TODO: Use `calldata` or `memory` to save gas?
     /// @param additionalParams See struct type for more info. WARNING: If using a merkle tree, make sure to use random `uniqueId` values to prevent the unauthorized submission of transactions using signatures and merkle proofs that have already been revealed.
     function execTransaction(
         address to,
@@ -101,8 +99,6 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         require(block.timestamp <= additionalParams.deadline, "This TX is expired/past its deadline.");
 
         // If specified, validate unique ID not used/blacklisted; if not specified and policy guardian is required, validate that policy guardian signature is required; if group unique ID specified, validate not blacklisted
-        // TODO: Save gas by caching `additionalParams.uniqueId` in memory?
-        // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
         require(additionalParams.uniqueId > 0 || additionalParams.groupUniqueId > 0, "Must specify either a unique ID or group unique ID to have the ability to prevent the repeat use of this function call.");
         if (additionalParams.uniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
         else if (address(policyGuardianSigner) != address(0)) require(safe.isOwner(address(policyGuardianSigner)) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
