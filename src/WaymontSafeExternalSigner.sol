@@ -100,16 +100,13 @@ contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1
         // Validate deadline
         require(block.timestamp <= additionalParams.deadline, "This TX is expired/past its deadline.");
 
-        // Validate unique ID
+        // If specified, validate unique ID not used/blacklisted; if not specified and policy guardian is required, validate that policy guardian signature is required; if group unique ID specified, validate not blacklisted
         // TODO: Save gas by caching `additionalParams.uniqueId` in memory?
         // TODO: Save gas by putting `safeSignatures` in `additionalParams` instead of `uniqueId`?
         require(additionalParams.uniqueId > 0 || additionalParams.groupUniqueId > 0, "Must specify either a unique ID or group unique ID to have the ability to prevent the repeat use of this function call.");
         if (additionalParams.uniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.uniqueId], "Function call unique ID has already been used or has been blacklisted.");
+        else if (address(policyGuardianSigner) != address(0)) require(safe.isOwner(address(policyGuardianSigner)) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
         if (additionalParams.groupUniqueId > 0) require(!functionCallUniqueIdBlacklist[additionalParams.groupUniqueId], "Function call group unique ID has been blacklisted.");
-
-        // If the unique ID is reusable and policy guardian is set, validate that policy guardian signature is required
-        if (additionalParams.uniqueId == 0 && address(policyGuardianSigner) != address(0))
-            require(safe.isOwner(address(policyGuardianSigner)) && safe.getThreshold() == safe.getOwners().length && policyGuardianSigner.policyGuardian() != address(0) && !policyGuardianSigner.policyGuardianDisabled(safe), "Policy guardian must be enabled to submit reusable transactions.");
 
         // Scope to avoid "stack too deep"
         {
