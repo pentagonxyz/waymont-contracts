@@ -13,16 +13,18 @@ import "lib/safe-contracts/contracts/libraries/MultiSend.sol";
 
 import "../src/WaymontSafeFactory.sol";
 import "../src/WaymontSafePolicyGuardianSigner.sol";
-import "../src/WaymontSafeAdvancedSigner.sol";
 import "../src/WaymontSafeTimelockedRecoveryModule.sol";
+import "../src/WaymontSafeExternalSignerFactory.sol";
+import "../src/WaymontSafeExternalSigner.sol";
 
-contract WaymontSafeFactoryTest is Test {
+contract WaymontSafeExternalSignerTest is Test {
     // Typehashes copied from contracts
     bytes32 private constant QUEUE_SIGNATURE_TYPEHASH = 0x56f7b592467518044b02545f1b4518cd51c746d04978afb6a3b9d05895cb79cf;
     bytes32 private constant EXEC_TRANSACTION_TYPEHASH = 0x017ac7ed7bb44ab92aef10c445ff46b9a95c18bfa2bf271178886356daa01e9c;
     bytes32 private constant QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0xd5fa5ce164fba34243c3b3b9c5346acc2eae6f31655b86516d465566d0ba53f7;
     bytes32 private constant UNQUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x16dda714d491dced303c8770c04d1539fd0000764e8745d3fe40945bb0d59dcf;
     bytes32 private constant DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x1fa738809572ae202e6e8b28ae7d08f5972c3ae85e70f8bc386515bb47925975;
+    bytes32 private constant WAYMONT_SAFE_EXTERNAL_SIGNER_TYPEHASH = 0xf641ab1aa14257ef40a4f6202602bc27847e79f0aa3bac95aa170c03c99d6290;
     
     // Waymont accounts
     address public constant POLICY_GUARDIAN_MANAGER = 0x1111a407ca07005b696eD702E163955f27445394;
@@ -38,6 +40,14 @@ contract WaymontSafeFactoryTest is Test {
     uint256 constant public BOB_PRIVATE = 0x992b834bb9d4af04b3c03be0a8968ce7e8a380d7832c6f73997eed358929a8b0;
     address constant public JOE = 0x12341f365ee78AC432C4c5340e318E35F1A60655;
     uint256 constant public JOE_PRIVATE = 0x879b74cdb4a972d577f27f60e94fe225019d352b6a2848d4eb3af327303b7e38;
+
+    // User external signing devices
+    address constant public ALICE_EXT = 0xA11CE665A00A8CCdabDa8FD9bd332F3F762bBB1D;
+    uint256 constant public ALICE_EXT_PRIVATE = 0x218ea951344494c72dcca73e31dbcb391b83670a7594b7c261c8638ece7d7334;
+    address constant public BOB_EXT = 0xB0BCC981f5A75d55Dc7faCf49599E2c351Df6293;
+    uint256 constant public BOB_EXT_PRIVATE = 0x1adb610481bea9e16ed5c1d3223b7e0180d8b279d1c55242c16867703899bb36;
+    address constant public JOE_EXT = 0x1234051c1188414823A78Ddb03cF2D6fe8f9BF27;
+    uint256 constant public JOE_EXT_PRIVATE = 0x14daba645f7e785be462f836a36e5cb1c14ef7570198074443425e527fdd6e8b;
 
     // Replacement user signing device
     address constant public JOE_REPLACEMENT = 0xFFFF15bd7Fe7890D078bb4FB74CF1C44213dC9BC;
@@ -61,8 +71,9 @@ contract WaymontSafeFactoryTest is Test {
     // Waymont contracts
     WaymontSafeFactory public waymontSafeFactory;
     WaymontSafePolicyGuardianSigner public policyGuardianSigner;
-    WaymontSafeAdvancedSigner public advancedSignerInstance;
     WaymontSafeTimelockedRecoveryModule public timelockedRecoveryModuleInstance;
+    WaymontSafeExternalSignerFactory public waymontSafeExternalSignerFactory;
+    WaymontSafeExternalSigner public externalSignerInstance;
 
     // Safe contracts
     SafeProxyFactory public safeProxyFactory;
@@ -78,6 +89,7 @@ contract WaymontSafeFactoryTest is Test {
         setUpSafeProxyFactory();
         multiSend = new MultiSend();
         setUpWaymontSafeFactory();
+        setUpWaymontSafeExternalSignerFactory();
         setUpWaymontSafe();
     }
 
@@ -129,6 +141,20 @@ contract WaymontSafeFactoryTest is Test {
         assert(policyGuardianSigner.policyGuardian() == POLICY_GUARDIAN);
     }
 
+    function setUpWaymontSafeExternalSignerFactory() public {
+        // Successfully create WaymontSafeExternalSignerFactory
+        waymontSafeExternalSignerFactory = new WaymontSafeExternalSignerFactory(policyGuardianSigner);
+
+        // Check WaymontSafePolicyGuardianSigner
+        assert(address(waymontSafeExternalSignerFactory.policyGuardianSigner()) == address(policyGuardianSigner));
+
+        // Check deployed contract exists
+        assert(waymontSafeExternalSignerFactory.externalSignerImplementation() != address(0));
+
+        // Check implementation singleton threshold
+        assert(WaymontSafeExternalSigner(waymontSafeExternalSignerFactory.externalSignerImplementation()).getThreshold() == 1);
+    }
+
     struct CreateTimelockedRecoveryModuleParams {
         address[] recoverySigners;
         uint256 recoveryThreshold;
@@ -162,7 +188,7 @@ contract WaymontSafeFactoryTest is Test {
         uint256 underlyingThreshold,
         CreateTimelockedRecoveryModuleParams memory moduleCreationParams,
         address[] memory initialOverlyingSigners,
-        address predictedAdvancedSignerInstanceAddress,
+        address predictedExternalSignerInstanceAddress,
         address predictedTimelockedRecoveryModuleInstanceAddress,
         uint256 deploymentNonce,
         bool expectRevert
@@ -172,12 +198,12 @@ contract WaymontSafeFactoryTest is Test {
         bytes memory data;
         Enum.Operation operation = Enum.Operation.DelegateCall;
         {
-            // Set new threshold for after the WaymontSafeAdvancedSigner is added
+            // Set new threshold for after the WaymontSafeExternalSigner is added
             uint256 finalOverlyingThreshold = 2;
 
-            // Add WaymontSafeAdvancedSigner to Safe as signer using Safe.addOwner
+            // Add WaymontSafeExternalSigner to Safe as signer using Safe.addOwnerWithThreshold
             to = address(safeInstance);
-            data = abi.encodeWithSelector(safeInstance.addOwnerWithThreshold.selector, predictedAdvancedSignerInstanceAddress, finalOverlyingThreshold);
+            data = abi.encodeWithSelector(safeInstance.addOwnerWithThreshold.selector, predictedExternalSignerInstanceAddress, finalOverlyingThreshold);
             bytes memory multiSendTransactions = abi.encodePacked(uint8(0), to, uint256(0), data.length, data);
 
             // Enable WaymontSafeTimelockedRecoveryModule on the Safe
@@ -185,10 +211,13 @@ contract WaymontSafeFactoryTest is Test {
             data = abi.encodeWithSelector(safeInstance.enableModule.selector, predictedTimelockedRecoveryModuleInstanceAddress);
             multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
 
-            // Deploy WaymontSafeAdvancedSigner
-            to = address(waymontSafeFactory);
-            data = abi.encodeWithSelector(waymontSafeFactory.createAdvancedSigner.selector, safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
-            multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
+            // Deploy WaymontSafeExternalSigner
+            {
+                bool requirePolicyGuardianForReusableCalls = true;
+                to = address(waymontSafeExternalSignerFactory);
+                data = abi.encodeWithSelector(waymontSafeExternalSignerFactory.createExternalSigner.selector, safeInstance, underlyingOwners, underlyingThreshold, requirePolicyGuardianForReusableCalls, deploymentNonce);
+                multiSendTransactions = abi.encodePacked(multiSendTransactions, uint8(0), to, uint256(0), data.length, data);
+            }
 
             // Deploy WaymontSafeTimelockedRecoveryModule
             to = address(waymontSafeFactory);
@@ -211,10 +240,10 @@ contract WaymontSafeFactoryTest is Test {
         // Get, order, and pack all overlying signatures
         bytes memory packedOverlyingSignatures;
         {
-            // Get overlying signatures
+            // Get signatures
             (, , bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, 0, data, operation, 0, false);
 
-            // Pack overlying signatures
+            // Pack all overlying signatures
             packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
         }
 
@@ -224,7 +253,7 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     function setUpWaymontSafe() public {
-        // WaymontAdvancedSigner params
+        // WaymontExternalSigner params
         address[] memory underlyingOwners = new address[](3);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
@@ -232,13 +261,13 @@ contract WaymontSafeFactoryTest is Test {
         uint256 underlyingThreshold = 2;
         uint256 deploymentNonce = 4444;
 
-        // Safe params--initiating signers are the signers that will remove themselves in favor of the `AdvancedSigner` (but the WaymontSafePolicyGuardianSigner will stay)
+        // Safe params--initiating signers are the signers that will remove themselves in favor of the `ExternalSigner` (but the WaymontSafePolicyGuardianSigner will stay)
         address[] memory initialOverlyingSigners;
         {
             uint256 initialOverlyingThreshold = 1;
             initialOverlyingSigners = new address[](initialOverlyingThreshold);
             initialOverlyingSigners[0] = address(policyGuardianSigner);
-            
+
             // Deploy Safe
             {
                 bytes memory initializer = abi.encodeWithSelector(
@@ -261,16 +290,17 @@ contract WaymontSafeFactoryTest is Test {
             assert(safeInstance.getThreshold() == initialOverlyingThreshold);
         }
 
-        // Predict WaymontSafeAdvancedSigner address
-        address predictedAdvancedSignerInstanceAddress;
+        // Predict WaymontSafeExternalSigner address
+        bool requirePolicyGuardianForReusableCalls = true;
+        address predictedExternalSignerInstanceAddress;
         {
-            bytes32 salt = keccak256(abi.encode(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce));
-            predictedAdvancedSignerInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.advancedSignerImplementation(), salt, address(waymontSafeFactory));
+            bytes32 salt = keccak256(abi.encode(safeInstance, underlyingOwners, underlyingThreshold, requirePolicyGuardianForReusableCalls, deploymentNonce));
+            predictedExternalSignerInstanceAddress = Clones.predictDeterministicAddress(waymontSafeExternalSignerFactory.externalSignerImplementation(), salt, address(waymontSafeExternalSignerFactory));
         }
 
-        // Try and fail to deploy WaymontSafeAdvancedSigner (since it has not yet been added to the Safe)
+        // Try and fail to deploy WaymontSafeExternalSigner (since it has not yet been added to the Safe)
         vm.expectRevert("The Safe is not owned by this Waymont signer contract.");
-        advancedSignerInstance = waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+        externalSignerInstance = waymontSafeExternalSignerFactory.createExternalSigner(safeInstance, underlyingOwners, underlyingThreshold, requirePolicyGuardianForReusableCalls, deploymentNonce);
 
         // WaymontSafeTimelockedRecoveryModule params (use same deploymentNonce)
         CreateTimelockedRecoveryModuleParams memory moduleCreationParams;
@@ -312,7 +342,7 @@ contract WaymontSafeFactoryTest is Test {
             underlyingThreshold,
             moduleCreationParams,
             initialOverlyingSigners,
-            predictedAdvancedSignerInstanceAddress,
+            predictedExternalSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
             true
@@ -331,39 +361,40 @@ contract WaymontSafeFactoryTest is Test {
             underlyingThreshold,
             moduleCreationParams,
             initialOverlyingSigners,
-            predictedAdvancedSignerInstanceAddress,
+            predictedExternalSignerInstanceAddress,
             badPredictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
             true
         );
         moduleCreationParams.recoverySigningTimelock = 3 days;
 
-        // Use Safe.execTransaction to call MultiSend.multiSend to add WaymontSafeAdvancedSigner to the Safe as a signer using Safe.swapOwner, remove the extra signer(s) from the Safe with Safe.removeOwner, enable the WaymontSafeTimelockedRecoveryModule on the Safe, deploy the WaymontSafeAdvancedSigner, and deploy the WaymontSafeTimelockedRecoveryModule
+        // Use Safe.execTransaction to call MultiSend.multiSend to add WaymontSafeExternalSigner to the Safe as a signer using Safe.swapOwner, remove the extra signer(s) from the Safe with Safe.removeOwner, enable the WaymontSafeTimelockedRecoveryModule on the Safe, deploy the WaymontSafeExternalSigner, and deploy the WaymontSafeTimelockedRecoveryModule
         _execInitialConfigOnSafe(
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
             initialOverlyingSigners,
-            predictedAdvancedSignerInstanceAddress,
+            predictedExternalSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
             false
         );
 
-        // Set WaymontSafeAdvancedSigner
-        advancedSignerInstance = WaymontSafeAdvancedSigner(predictedAdvancedSignerInstanceAddress);
+        // Set WaymontSafeExternalSigner
+        externalSignerInstance = WaymontSafeExternalSigner(predictedExternalSignerInstanceAddress);
 
-        // Assert WaymontSafeAdvancedSigner deployed correctly
-        assert(address(advancedSignerInstance) == predictedAdvancedSignerInstanceAddress);
-        for (uint256 i = 0; i < underlyingOwners.length; i++) assert(advancedSignerInstance.isOwner(underlyingOwners[i]));
-        assert(address(advancedSignerInstance.safe()) == address(safeInstance));
-        assert(advancedSignerInstance.getThreshold() == underlyingThreshold);
+        // Assert WaymontSafeExternalSigner deployed correctly
+        assert(address(externalSignerInstance) == predictedExternalSignerInstanceAddress);
+        for (uint256 i = 0; i < underlyingOwners.length; i++) assert(externalSignerInstance.isOwner(underlyingOwners[i]));
+        assert(address(externalSignerInstance.safe()) == address(safeInstance));
+        assert(externalSignerInstance.getThreshold() == underlyingThreshold);
+        assert(address(externalSignerInstance.policyGuardianSigner()) == address(policyGuardianSigner));
 
         // Assert signers configured correctly now
         {
             address[] memory finalOverlyingSigners = new address[](2);
             finalOverlyingSigners[0] = address(policyGuardianSigner);
-            finalOverlyingSigners[1] = address(advancedSignerInstance);
+            finalOverlyingSigners[1] = address(externalSignerInstance);
             for (uint256 i = 0; i < finalOverlyingSigners.length; i++) assert(safeInstance.isOwner(finalOverlyingSigners[i]));
             assert(safeInstance.getOwners().length == finalOverlyingSigners.length);
             assert(safeInstance.getThreshold() == 2);
@@ -374,27 +405,28 @@ contract WaymontSafeFactoryTest is Test {
 
         // Assert deployed correctly
         assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
-        assert(address(advancedSignerInstance.safe()) == address(safeInstance));
+        assert(address(externalSignerInstance.safe()) == address(safeInstance));
         for (uint256 i = 0; i < moduleCreationParams.recoverySigners.length; i++) assert(timelockedRecoveryModuleInstance.isOwner(moduleCreationParams.recoverySigners[i]));
-        assert(advancedSignerInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
+        assert(externalSignerInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
         assert(timelockedRecoveryModuleInstance.signingTimelock() == moduleCreationParams.recoverySigningTimelock);
         assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
         assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
         assert(safeInstance.isModuleEnabled(address(timelockedRecoveryModuleInstance)));
     }
 
-    function testCannotCreateAdvancedSignerWithMismatchingDeploymentNonce() public {
-        // WaymontSafeAdvancedSigner params
+    function testCannotCreateExternalSignerWithMismatchingDeploymentNonce() public {
+        // WaymontSafeExternalSigner params
         address[] memory underlyingOwners = new address[](3);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
         uint256 underlyingThreshold = 2;
+        bool requirePolicyGuardianForReusableCalls = true;
         uint256 deploymentNonce = 5555;
 
         // Failure
         vm.expectRevert("The Safe is not owned by this Waymont signer contract.");
-        waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+        waymontSafeExternalSignerFactory.createExternalSigner(safeInstance, underlyingOwners, underlyingThreshold, requirePolicyGuardianForReusableCalls, deploymentNonce);
     }
 
     function testCannotCreateTimelockedRecoveryModuleWithMismatchingDeploymentNonce() public {
@@ -420,18 +452,19 @@ contract WaymontSafeFactoryTest is Test {
         );
     }
 
-    function testCannotCreateAdvancedSignerWithSameParamsTwice() public {
-        // WaymontSafeAdvancedSigner params
+    function testCannotCreateExternalSignerWithSameParamsTwice() public {
+        // WaymontSafeExternalSigner params
         address[] memory underlyingOwners = new address[](3);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
         uint256 underlyingThreshold = 2;
+        bool requirePolicyGuardianForReusableCalls = true;
         uint256 deploymentNonce = 4444;
 
         // Failure
         vm.expectRevert();
-        waymontSafeFactory.createAdvancedSigner(safeInstance, underlyingOwners, underlyingThreshold, deploymentNonce);
+        waymontSafeExternalSignerFactory.createExternalSigner(safeInstance, underlyingOwners, underlyingThreshold, requirePolicyGuardianForReusableCalls, deploymentNonce);
     }
 
     function testCannotCreateTimelockedRecoveryModuleWithSameParamsTwice() public {
@@ -457,17 +490,17 @@ contract WaymontSafeFactoryTest is Test {
         );
     }
 
-    function testCannotReinitializeAdvancedSigner() public {
-        // WaymontSafeAdvancedSigner params
+    function testCannotReinitializeExternalSigner() public {
+        // WaymontSafeExternalSigner params
         address[] memory underlyingOwners = new address[](3);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
         uint256 underlyingThreshold = 2;
 
-        // Try and fail to re-initialize the WaymontSafeAdvancedSigner instance
+        // Try and fail to re-initialize the WaymontSafeExternalSigner instance
         vm.expectRevert("GS200");
-        advancedSignerInstance.initialize(safeInstance, underlyingOwners, underlyingThreshold);
+        externalSignerInstance.initialize(safeInstance, underlyingOwners, underlyingThreshold, policyGuardianSigner);
     }
 
     function testCannotReinitializeTimelockedRecoveryModule() public {
@@ -792,22 +825,22 @@ contract WaymontSafeFactoryTest is Test {
             // Pack user signatures
             bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-            // Generate overlying WaymontSafeAdvancedSigner signature
-            bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
-                bytes32(uint256(uint160(address(advancedSignerInstance)))),
+            // Generate overlying WaymontSafeExternalSigner signature
+            bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
+                bytes32(uint256(uint160(address(externalSignerInstance)))),
                 uint256((65 * 2) + 32 + (options.testShortPolicyGuardianSignature ? 64 : 65)),
                 uint8(0)
             );
-            bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
+            bytes memory externalSignerOverlyingSignatureData = abi.encodePacked(
                 uint256(65 * 2),
                 packedUserSignatures
             );
 
             // Pack all overlying signatures (in correct order)
-            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             } else {
-                packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+                packedOverlyingSignatures = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             }
         }
 
@@ -869,13 +902,13 @@ contract WaymontSafeFactoryTest is Test {
         // Pack user signatures (to queue disabling)
         bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-        // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
-        bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
-            bytes32(uint256(uint160(address(advancedSignerInstance)))),
+        // Generate overlying WaymontSafeExternalSigner signature (to queue disabling)
+        bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(externalSignerInstance)))),
             uint256((65 * 2) + 32 + 65),
             uint8(0)
         );
-        bytes memory advancedSignerOverlyingSignatureData = abi.encodePacked(
+        bytes memory externalSignerOverlyingSignatureData = abi.encodePacked(
             uint256(65 * 2),
             packedUserSignatures
         );
@@ -883,10 +916,10 @@ contract WaymontSafeFactoryTest is Test {
         // Pack all overlying signatures in correct order (to queue disabling)
         bytes memory packedOverlyingSignaturesForQueueing;
 
-        if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-            packedOverlyingSignaturesForQueueing = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+        if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+            packedOverlyingSignaturesForQueueing = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
         } else {
-            packedOverlyingSignaturesForQueueing = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            packedOverlyingSignaturesForQueueing = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
         }
 
         // Generate underlying hash + overlying signed data (to execute disabling)
@@ -904,13 +937,13 @@ contract WaymontSafeFactoryTest is Test {
         // Pack user signatures
         packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-        // Generate overlying WaymontSafeAdvancedSigner signature
-        advancedSignerOverlyingSignaturePointer = abi.encodePacked(
-            bytes32(uint256(uint160(address(advancedSignerInstance)))),
+        // Generate overlying WaymontSafeExternalSigner signature
+        externalSignerOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(externalSignerInstance)))),
             uint256((65 * 2) + 32 + 65),
             uint8(0)
         );
-        advancedSignerOverlyingSignatureData = abi.encodePacked(
+        externalSignerOverlyingSignatureData = abi.encodePacked(
             uint256(65 * 2),
             packedUserSignatures
         );
@@ -919,10 +952,10 @@ contract WaymontSafeFactoryTest is Test {
             // Pack all overlying signatures in correct order (to execute disabling)
             bytes memory packedOverlyingSignatures;
 
-            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             } else {
-                packedOverlyingSignatures = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+                packedOverlyingSignatures = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             }
 
             // Fail to disable the policy guardian since not yet queued
@@ -954,8 +987,8 @@ contract WaymontSafeFactoryTest is Test {
             // Pack user signatures (to queue disabling)
             packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-            // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
-            advancedSignerOverlyingSignatureData = abi.encodePacked(
+            // Generate overlying WaymontSafeExternalSigner signature (to queue disabling)
+            externalSignerOverlyingSignatureData = abi.encodePacked(
                 uint256(65 * 2),
                 packedUserSignatures
             );
@@ -963,10 +996,10 @@ contract WaymontSafeFactoryTest is Test {
             // Pack all overlying signatures in correct order (to queue disabling)
             bytes memory packedOverlyingSignaturesForUnqueueing;
 
-            if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             } else {
-                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+                packedOverlyingSignaturesForUnqueueing = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
             }
 
             // Unqueue the disabling of the policy guardian
@@ -992,8 +1025,8 @@ contract WaymontSafeFactoryTest is Test {
         // AGAIN WITH NEW NONCE: Pack user signatures
         packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
-        // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeAdvancedSigner signature
-        advancedSignerOverlyingSignatureData = abi.encodePacked(
+        // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeExternalSigner signature
+        externalSignerOverlyingSignatureData = abi.encodePacked(
             uint256(65 * 2),
             packedUserSignatures
         );
@@ -1001,10 +1034,10 @@ contract WaymontSafeFactoryTest is Test {
         // AGAIN WITH NEW NONCE: Pack all overlying signatures in correct order (to execute disabling)
         bytes memory packedOverlyingSignatures2;
 
-        if (address(advancedSignerInstance) > address(policyGuardianSigner)) {
-            packedOverlyingSignatures2 = abi.encodePacked(policyGuardianOverlyingSignaturePointer, advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+        if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+            packedOverlyingSignatures2 = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
         } else {
-            packedOverlyingSignatures2 = abi.encodePacked(advancedSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, advancedSignerOverlyingSignatureData);
+            packedOverlyingSignatures2 = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData, externalSignerOverlyingSignatureData);
         }
 
         // Wait almost for the timelock to pass
@@ -1142,8 +1175,8 @@ contract WaymontSafeFactoryTest is Test {
 
     function _testSocialRecovery(TestSocialRecoveryOptions memory options) internal {
         // Underlying transaction params
-        address to = address(advancedSignerInstance);
-        bytes memory data = abi.encodeWithSelector(advancedSignerInstance.swapOwner.selector, options.testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
+        address to = address(externalSignerInstance);
+        bytes memory data = abi.encodeWithSelector(externalSignerInstance.swapOwner.selector, options.testRevertingUnderlyingTransaction ? ALICE : BOB, JOE, JOE_REPLACEMENT);
 
         // Standard params
         uint256 value = 0;
@@ -1256,8 +1289,8 @@ contract WaymontSafeFactoryTest is Test {
             assert(timelockedRecoveryModuleInstance.nonce() == moduleNonce + 1);
 
             if (!options.testRevertingUnderlyingTransaction) {
-                assert(advancedSignerInstance.isOwner(JOE_REPLACEMENT));
-                assert(!advancedSignerInstance.isOwner(JOE));
+                assert(externalSignerInstance.isOwner(JOE_REPLACEMENT));
+                assert(!externalSignerInstance.isOwner(JOE));
             }
         }
     }
