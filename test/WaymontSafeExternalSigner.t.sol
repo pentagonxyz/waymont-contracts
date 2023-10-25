@@ -240,7 +240,7 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
-            (, , bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, 0, data, operation, 0, false);
+            (, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, 0, data, operation, 0, false);
 
             // Pack all overlying signatures
             packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
@@ -766,8 +766,7 @@ contract WaymontSafeExternalSignerTest is Test {
         uint256 overlyingSignaturesBeforePolicyGuardian,
         bool useSecondaryPolicyGuardian
     ) internal returns (
-        bytes memory externalSignerOverlyingSignaturePointer,
-        bytes memory externalSignerOverlyingSignatureData,
+        bytes memory externalSignatures,
         bytes memory policyGuardianOverlyingSignaturePointer,
         bytes memory policyGuardianOverlyingSignatureData
     ) {
@@ -826,18 +825,7 @@ contract WaymontSafeExternalSignerTest is Test {
         externalSigners[0] = ALICE;
         externalSigners[1] = BOB;
         externalSigners[2] = SAM_SCW;
-        bytes memory externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
-
-        // Generate overlying policy guardian smart contract signature
-        externalSignerOverlyingSignaturePointer = abi.encodePacked(
-            bytes32(uint256(uint160(address(policyGuardianSigner)))),
-            uint256((overlyingSignaturesBeforePolicyGuardian + 1) * 65),
-            uint8(0)
-        );
-        externalSignerOverlyingSignatureData = abi.encodePacked(
-            uint256(65),
-            externalSignatures
-        );
+        externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
     }
 
     event PolicyGuardianDisabledOnSafe(Safe indexed safe, bool withoutPolicyGuardian);
@@ -859,13 +847,10 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes memory packedOverlyingSignatures;
         {
             // Get signatures
-            (bytes memory userSignature1, bytes memory userSignature2, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
-            if (options.testInvalidUserSignature) userSignature1[50] = userSignature1[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+            (bytes memory externalSignatures, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
+            if (options.testInvalidUserSignature) externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] = externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
-
-            // Pack user signatures
-            bytes memory packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
             // Generate overlying WaymontSafeExternalSigner signature
             bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -874,8 +859,8 @@ contract WaymontSafeExternalSignerTest is Test {
                 uint8(0)
             );
             bytes memory externalSignerOverlyingSignatureData = abi.encodePacked(
-                uint256(65 * 2),
-                packedUserSignatures
+                externalSignatures.length,
+                externalSignatures
             );
 
             // Pack all overlying signatures (in correct order)
@@ -985,7 +970,7 @@ contract WaymontSafeExternalSignerTest is Test {
             uint8(0)
         );
         bytes memory externalSignerOverlyingSignatureData = abi.encodePacked(
-            uint256(65 * 2),
+            packedUserSignatures.length,
             packedUserSignatures
         );
 
@@ -1037,7 +1022,7 @@ contract WaymontSafeExternalSignerTest is Test {
             uint8(0)
         );
         externalSignerOverlyingSignatureData = abi.encodePacked(
-            uint256(65 * 2),
+            packedUserSignatures.length,
             packedUserSignatures
         );
 
@@ -1099,7 +1084,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
             // Generate overlying WaymontSafeExternalSigner signature (to queue disabling)
             externalSignerOverlyingSignatureData = abi.encodePacked(
-                uint256(65 * 2),
+                packedUserSignatures.length,
                 packedUserSignatures
             );
 
@@ -1154,7 +1139,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeExternalSigner signature
         externalSignerOverlyingSignatureData = abi.encodePacked(
-            uint256(65 * 2),
+            packedUserSignatures.length,
             packedUserSignatures
         );
 
