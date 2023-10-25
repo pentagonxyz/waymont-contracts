@@ -41,8 +41,8 @@ contract WaymontSafeExternalSignerTest is Test {
     uint256 constant public BOB_PRIVATE = 0x992b834bb9d4af04b3c03be0a8968ce7e8a380d7832c6f73997eed358929a8b0;
     address constant public JOE = 0x12341f365ee78AC432C4c5340e318E35F1A60655;
     uint256 constant public JOE_PRIVATE = 0x879b74cdb4a972d577f27f60e94fe225019d352b6a2848d4eb3af327303b7e38;
-    address constant public SAM = 0x1234051c1188414823A78Ddb03cF2D6fe8f9BF27;
-    uint256 constant public SAM_PRIVATE = 0x14daba645f7e785be462f836a36e5cb1c14ef7570198074443425e527fdd6e8b;
+    address constant public SAM_UNDERLYING = 0x1234051c1188414823A78Ddb03cF2D6fe8f9BF27;
+    uint256 constant public SAM_UNDERLYING_PRIVATE = 0x14daba645f7e785be462f836a36e5cb1c14ef7570198074443425e527fdd6e8b;
     address constant public SAM_SCW = 0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa;
 
     // Replacement user signing device
@@ -784,7 +784,7 @@ contract WaymontSafeExternalSignerTest is Test {
         topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3
-        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_UNDERLYING_PRIVATE, txHash);
         bytes memory samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW
@@ -848,7 +848,7 @@ contract WaymontSafeExternalSignerTest is Test {
         {
             // Get signatures
             (bytes memory externalSignatures, bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getUserSignaturesAndOverlyingPolicyGuardianSignature(to, value, data, Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
-            if (options.testInvalidUserSignature) externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] = externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+            if (options.testInvalidUserSignature) externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
             else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
@@ -924,7 +924,7 @@ contract WaymontSafeExternalSignerTest is Test {
         topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3 (to queue disabling)
-        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_UNDERLYING_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
         bytes memory samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW (to queue disabling)
@@ -996,7 +996,7 @@ contract WaymontSafeExternalSignerTest is Test {
         topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3 (to execute disabling)
-        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_UNDERLYING_PRIVATE, txHash);
         samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW (to execute disabling)
@@ -1063,7 +1063,7 @@ contract WaymontSafeExternalSignerTest is Test {
             topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
             // Generate user signing device signature #3
-            (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+            (sig.v, sig.r, sig.s) = vm.sign(SAM_UNDERLYING_PRIVATE, txHash);
             samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
             // Wrap user signing device signature #3 with a fake SCW
@@ -1118,7 +1118,7 @@ contract WaymontSafeExternalSignerTest is Test {
         topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #3
-        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_UNDERLYING_PRIVATE, txHash);
         samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // AGAIN WITH NEW NONCE: Wrap user signing device signature #3 with a fake SCW
@@ -1453,7 +1453,7 @@ contract WaymontSafeExternalSignerTest is Test {
             {
                 // Get signatures
                 (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
-                if (options.testInvalidUserSignature) externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] = externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                if (options.testInvalidUserSignature) externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                 else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                 else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
@@ -1584,7 +1584,7 @@ contract WaymontSafeExternalSignerTest is Test {
         topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
 
         // Generate user signing device signature #3
-        (v, r, s) = vm.sign(SAM_PRIVATE, root);
+        (v, r, s) = vm.sign(SAM_UNDERLYING_PRIVATE, root);
         bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
 
         // Wrap user signing device signature #3 with a fake SCW
