@@ -137,24 +137,38 @@ contract WaymontSafeFactoryTest is Test {
     }
 
     function _packSignaturesOrderedBySigner(bytes[] memory signatures, address[] memory signers) internal pure returns (bytes memory packedOrderedSignatures) {
+        // Assertions
         assert(signatures.length == signers.length);
         assert(signatures.length > 0);
+
+        // Handle simple case of only one signature
         if (signatures.length == 1) return signatures[0];
 
-        for (uint256 i = 1; i < signers.length; i++) {
-            address signer = signers[i];
-            bytes memory signature = signatures[i];
-            uint256 j;
-            for (j = i; j > 0 && signer < signers[j - 1]; j--) {
-                signers[j] = signers[j - 1];
-                signatures[j] = signatures[j - 1];
-            }
-            signers[j] = signer;
-            signatures[j] = signature;
+        // Copy input arrays to avoid messing them up
+        address[] memory _signers = new address[](signers.length);
+        bytes[] memory _signatures = new bytes[](signatures.length);
+
+        for (uint256 i = 0; i < signers.length; i++) {
+            _signers[i] = signers[i];
+            _signatures[i] = signatures[i];
         }
 
-        packedOrderedSignatures = signatures[0];
-        for (uint256 i = 1; i < signatures.length; i++) packedOrderedSignatures = abi.encodePacked(packedOrderedSignatures, signatures[i]);
+        // Sort signatures by signer
+        for (uint256 i = 1; i < _signers.length; i++) {
+            address signer = _signers[i];
+            bytes memory signature = _signatures[i];
+            uint256 j;
+            for (j = i; j > 0 && signer < signers[j - 1]; j--) {
+                _signers[j] = _signers[j - 1];
+                _signatures[j] = _signatures[j - 1];
+            }
+            _signers[j] = signer;
+            _signatures[j] = signature;
+        }
+
+        // Pack ordered signatures
+        packedOrderedSignatures = _signatures[0];
+        for (uint256 i = 1; i < signatures.length; i++) packedOrderedSignatures = abi.encodePacked(packedOrderedSignatures, _signatures[i]);
     }
 
     function _execInitialConfigOnSafe(
