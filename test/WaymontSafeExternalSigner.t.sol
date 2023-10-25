@@ -1450,7 +1450,7 @@ contract WaymontSafeExternalSignerTest is Test {
         dummy2 = arg;
     }
 
-    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options) internal {
+    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, bool testExpiredTx) internal {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length);
 
@@ -1486,7 +1486,7 @@ contract WaymontSafeExternalSignerTest is Test {
                 }
             }
 
-            // Safe.execTransaction
+            // Expect reverts and/or emits if testing certain things
             if (options.testInvalidUserSignature) vm.expectRevert("GS026");
             else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
             else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
@@ -1497,7 +1497,9 @@ contract WaymontSafeExternalSignerTest is Test {
             } else if (options.expectEmitPolicyGuardianTimelockChanged) {
                 vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
                 emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
-            }
+            } else if (testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
+
+            // ExternalSigner.execTransaction
             WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
                 externalSignatures,
                 uniqueIds[i],
@@ -1510,7 +1512,7 @@ contract WaymontSafeExternalSignerTest is Test {
     }
 
     function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines) internal {
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), false);
     }
 
     struct ExecNonIncrementalTransactionSigningParams {
@@ -1680,11 +1682,21 @@ contract WaymontSafeExternalSignerTest is Test {
         uniqueIds[1] = lastUniqueId;
         uint256[] memory groupUniqueIds = new uint256[](2);
         uint256[] memory deadlines = new uint256[](2);
+        deadlines[0] = block.timestamp + 365 days;
+        deadlines[1] = block.timestamp + 365 days;
 
         // Safe.execTransaction expecting revert
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, true, false, false, false, false, 0));
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, true, false, false, false, 0));
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, true, false, false, 0));
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, true, false, false, false, false, 0), false);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, true, false, false, false, 0), false);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, true, false, false, 0), false);
+
+        // Expect revert if expired
+        vm.warp(block.timestamp + 365 days + 1 seconds);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), true);
+
+        // Reset deadlines
+        deadlines[0] = block.timestamp + 365 days;
+        deadlines[1] = block.timestamp + 365 days;
 
         // Safe.execTransaction
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines);
