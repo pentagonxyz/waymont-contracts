@@ -370,9 +370,9 @@ contract WaymontSafeFactoryTest is Test {
 
         // Assert deployed correctly
         assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
-        assert(address(advancedSignerInstance.safe()) == address(safeInstance));
+        assert(address(timelockedRecoveryModuleInstance.safe()) == address(safeInstance));
         for (uint256 i = 0; i < moduleCreationParams.recoverySigners.length; i++) assert(timelockedRecoveryModuleInstance.isOwner(moduleCreationParams.recoverySigners[i]));
-        assert(advancedSignerInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
+        assert(timelockedRecoveryModuleInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
         assert(timelockedRecoveryModuleInstance.signingTimelock() == moduleCreationParams.recoverySigningTimelock);
         assert(address(timelockedRecoveryModuleInstance.waymontSafeFactory()) == address(waymontSafeFactory));
         assert(address(timelockedRecoveryModuleInstance.policyGuardianSigner()) == (moduleCreationParams.requirePolicyGuardianForRecovery ? address(policyGuardianSigner) : address(0)));
