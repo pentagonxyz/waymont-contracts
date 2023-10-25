@@ -1559,7 +1559,7 @@ contract WaymontSafeExternalSignerTest is Test {
         uint256[] memory deadline
     ) internal returns (bytes memory externalSignatures, bytes32[][] memory merkleProofs) {
         // Input validation
-        assert(to.length > 0 && to.length == value.length && to.length == data.length);
+        assert(to.length > 0 && to.length == value.length && to.length == data.length && to.length == uniqueId.length && to.length == groupUniqueId.length && to.length == deadline.length);
         assert(to.length <= 2); // Merkle proof code below only supports up to 2 TXs
         
         // Generate merkle tree
