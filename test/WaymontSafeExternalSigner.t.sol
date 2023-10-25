@@ -1662,13 +1662,13 @@ contract WaymontSafeExternalSignerTest is Test {
         vm.deal(address(safeInstance), 1337 + 1338);
 
         // Transaction params
-        address[] memory to;
+        address[] memory to = new address[](2);
         to[0] = address(this);
         to[1] = address(this);
-        uint256[] memory value;
+        uint256[] memory value = new uint256[](2);
         value[0] = 1337;
         value[1] = 1338;
-        bytes[] memory data;
+        bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
         data[1] = abi.encodeWithSelector(this.sampleWalletOnlyFunction2.selector, 33333333);
 
