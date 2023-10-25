@@ -775,17 +775,18 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, operation, 0, 0, 0, address(0), payable(address(0)), safeInstance.nonce()));
 
         // Generate user signing device signature #1
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
+        Signature memory sig;
+        (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
         bytes[] memory topLevelExternalSignatures;
-        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+        topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Generate user signing device signature #2
-        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+        (sig.v, sig.r, sig.s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3
-        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
-        bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        bytes memory samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW
         topLevelExternalSignatures[2] = abi.encodePacked(
@@ -806,8 +807,8 @@ contract WaymontSafeExternalSignerTest is Test {
         );
 
         // Generate underlying/actual policy guardian signature
-        (v, r, s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
-        bytes memory policyGuardianUnderlyingSignature = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
+        bytes memory policyGuardianUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Generate overlying policy guardian smart contract signature
         policyGuardianOverlyingSignaturePointer = abi.encodePacked(
@@ -915,6 +916,12 @@ contract WaymontSafeExternalSignerTest is Test {
         _testDisablePolicyGuardianWithoutPolicyGuardian(true);
     }
 
+    struct Signature {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+
     function _testDisablePolicyGuardianWithoutPolicyGuardian(bool testUnqueueingInstead) internal {
         // Generate underlying hash + overlying signed data (to queue disabling)
         uint256 signerNonce = policyGuardianSigner.nonces(safeInstance);
@@ -922,17 +929,18 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes32 txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
 
         // Generate user signing device signature #1 (to queue disabling)
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
+        Signature memory sig;
+        (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
         bytes[] memory topLevelExternalSignatures = new bytes[](3);
-        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+        topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Generate user signing device signature #2 (to queue disabling)
-        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+        (sig.v, sig.r, sig.s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3 (to queue disabling)
-        (v, r, s) = vm.sign(SAM_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        bytes memory samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW (to queue disabling)
         topLevelExternalSignatures[2] = abi.encodePacked(
@@ -995,16 +1003,16 @@ contract WaymontSafeExternalSignerTest is Test {
         txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
 
         // Generate user signing device signature #1 (to execute disabling)
-        (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
+        topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Generate user signing device signature #2 (to execute disabling)
-        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+        (sig.v, sig.r, sig.s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // Generate user signing device signature #3 (to execute disabling)
-        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
-        samUnderlyingSignature = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Wrap user signing device signature #3 with a fake SCW (to execute disabling)
         samScwOverlyingSignatureData = abi.encodePacked(
@@ -1062,16 +1070,16 @@ contract WaymontSafeExternalSignerTest is Test {
             txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
 
             // Generate user signing device signature #1 (to queue disabling)
-            (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-            topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+            (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
+            topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
             // Generate user signing device signature #2 (to queue disabling)
-            (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-            topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+            (sig.v, sig.r, sig.s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+            topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
             // Generate user signing device signature #3
-            (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
-            samUnderlyingSignature = abi.encodePacked(r, s, v);
+            (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+            samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
             // Wrap user signing device signature #3 with a fake SCW
             samScwOverlyingSignatureData = abi.encodePacked(
@@ -1117,16 +1125,16 @@ contract WaymontSafeExternalSignerTest is Test {
         txHash = keccak256(abi.encodePacked(bytes1(0x19), bytes1(0x01), policyGuardianSigner.domainSeparator(), underlyingHash));
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #1 (to execute disabling)
-        (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
+        topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #2 (to execute disabling)
-        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+        (sig.v, sig.r, sig.s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        topLevelExternalSignatures[1] = abi.encodePacked(sig.r, sig.s, sig.v + 4);
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #3
-        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
-        samUnderlyingSignature = abi.encodePacked(r, s, v);
+        (sig.v, sig.r, sig.s) = vm.sign(SAM_PRIVATE, txHash);
+        samUnderlyingSignature = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // AGAIN WITH NEW NONCE: Wrap user signing device signature #3 with a fake SCW
         samScwOverlyingSignatureData = abi.encodePacked(
@@ -1506,6 +1514,12 @@ contract WaymontSafeExternalSignerTest is Test {
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
     }
 
+    struct ExecNonIncrementalTransactionSigningParams {
+        uint256 uniqueId;
+        uint256 groupUniqueId;
+        uint256 deadline;
+    }
+
     function _encodeNonIncrementalTransactionData(
         address to,
         uint256 value,
@@ -1516,9 +1530,7 @@ contract WaymontSafeExternalSignerTest is Test {
         uint256 gasPrice,
         address gasToken,
         address refundReceiver,
-        uint256 uniqueId,
-        uint256 groupUniqueId,
-        uint256 deadline
+        ExecNonIncrementalTransactionSigningParams memory additionalParams
     ) internal view returns (bytes memory) {
         bytes32 safeTxHash = keccak256(abi.encode(
             EXTERNAL_SIGNER_SAFE_TX_TYPEHASH,
@@ -1531,9 +1543,9 @@ contract WaymontSafeExternalSignerTest is Test {
             gasPrice,
             gasToken,
             refundReceiver,
-            uniqueId,
-            groupUniqueId,
-            deadline
+            additionalParams.uniqueId,
+            additionalParams.groupUniqueId,
+            additionalParams.deadline
         ));
         return abi.encodePacked(bytes1(0x19), bytes1(0x01), externalSignerInstance.domainSeparator(), safeTxHash);
     }
@@ -1557,8 +1569,10 @@ contract WaymontSafeExternalSignerTest is Test {
 
         if (to.length == 2) {
             // Generate data hash for the new transactions
-            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), uniqueId[0], groupUniqueId[0], deadline[0]));
-            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, 0, address(0), payable(address(0)), uniqueId[1], groupUniqueId[1], deadline[1]));
+            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), additionalParams));
+            additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1]);
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, 0, address(0), payable(address(0)), additionalParams));
 
             // Get merkle root
             root = keccak256(txHashA < txHashB ? abi.encode(txHashA, txHashB) : abi.encode(txHashB, txHashA));
@@ -1571,7 +1585,8 @@ contract WaymontSafeExternalSignerTest is Test {
             merkleProofs[1][0] = txHashA;
         } else {
             // Only one level in merkle tree
-            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), uniqueId[0], groupUniqueId[0], deadline[0]));
+            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
+            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), additionalParams));
         }
 
         // Generate user signing device signature #1
