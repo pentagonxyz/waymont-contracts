@@ -777,7 +777,7 @@ contract WaymontSafeExternalSignerTest is Test {
         // Generate user signing device signature #1
         Signature memory sig;
         (sig.v, sig.r, sig.s) = vm.sign(ALICE_PRIVATE, txHash);
-        bytes[] memory topLevelExternalSignatures;
+        bytes[] memory topLevelExternalSignatures = new bytes[](3);
         topLevelExternalSignatures[0] = abi.encodePacked(sig.r, sig.s, sig.v);
 
         // Generate user signing device signature #2
@@ -1591,7 +1591,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Generate user signing device signature #1
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, root);
-        bytes[] memory topLevelExternalSignatures;
+        bytes[] memory topLevelExternalSignatures = new bytes[](3);
         topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
         // Generate user signing device signature #2
