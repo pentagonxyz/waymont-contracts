@@ -161,7 +161,6 @@ contract WaymontSafeFactoryTest is Test {
         address[] memory underlyingOwners,
         uint256 underlyingThreshold,
         CreateTimelockedRecoveryModuleParams memory moduleCreationParams,
-        address[] memory initialOverlyingSigners,
         address predictedAdvancedSignerInstanceAddress,
         address predictedTimelockedRecoveryModuleInstanceAddress,
         uint256 deploymentNonce,
@@ -311,7 +310,6 @@ contract WaymontSafeFactoryTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedAdvancedSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -330,7 +328,6 @@ contract WaymontSafeFactoryTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedAdvancedSignerInstanceAddress,
             badPredictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -343,7 +340,6 @@ contract WaymontSafeFactoryTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedAdvancedSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -790,7 +786,7 @@ contract WaymontSafeFactoryTest is Test {
             else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
             // Pack user signatures
-            bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+            bytes memory packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
             // Generate overlying WaymontSafeAdvancedSigner signature
             bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -867,7 +863,7 @@ contract WaymontSafeFactoryTest is Test {
         );
 
         // Pack user signatures (to queue disabling)
-        bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+        bytes memory packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
         // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
         bytes memory advancedSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -902,7 +898,7 @@ contract WaymontSafeFactoryTest is Test {
         userSignature2 = abi.encodePacked(r, s, v + 4);
 
         // Pack user signatures
-        packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+        packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
         // Generate overlying WaymontSafeAdvancedSigner signature
         advancedSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -952,7 +948,7 @@ contract WaymontSafeFactoryTest is Test {
             userSignature2 = abi.encodePacked(r, s, v + 4);
 
             // Pack user signatures (to queue disabling)
-            packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+            packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
             // Generate overlying WaymontSafeAdvancedSigner signature (to queue disabling)
             advancedSignerOverlyingSignatureData = abi.encodePacked(
@@ -990,7 +986,7 @@ contract WaymontSafeFactoryTest is Test {
         userSignature2 = abi.encodePacked(r, s, v + 4);
 
         // AGAIN WITH NEW NONCE: Pack user signatures
-        packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+        packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
         // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeAdvancedSigner signature
         advancedSignerOverlyingSignatureData = abi.encodePacked(

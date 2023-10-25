@@ -10,6 +10,7 @@ import "lib/safe-contracts/contracts/common/Enum.sol";
 import "lib/safe-contracts/contracts/handler/CompatibilityFallbackHandler.sol";
 import "lib/safe-contracts/contracts/proxies/SafeProxyFactory.sol";
 import "lib/safe-contracts/contracts/libraries/MultiSend.sol";
+import "lib/safe-contracts/contracts/interfaces/IStandardSignatureValidator.sol";
 
 import "../src/WaymontSafeFactory.sol";
 import "../src/WaymontSafePolicyGuardianSigner.sol";
@@ -24,8 +25,8 @@ contract WaymontSafeExternalSignerTest is Test {
     bytes32 private constant QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0xd5fa5ce164fba34243c3b3b9c5346acc2eae6f31655b86516d465566d0ba53f7;
     bytes32 private constant UNQUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x16dda714d491dced303c8770c04d1539fd0000764e8745d3fe40945bb0d59dcf;
     bytes32 private constant DISABLE_POLICY_GUARDIAN_TYPEHASH = 0x1fa738809572ae202e6e8b28ae7d08f5972c3ae85e70f8bc386515bb47925975;
-    bytes32 private constant WAYMONT_SAFE_EXTERNAL_SIGNER_TYPEHASH = 0xf641ab1aa14257ef40a4f6202602bc27847e79f0aa3bac95aa170c03c99d6290;
-    
+    bytes32 private constant EXTERNAL_SIGNER_SAFE_TX_TYPEHASH = 0xf641ab1aa14257ef40a4f6202602bc27847e79f0aa3bac95aa170c03c99d6290;
+
     // Waymont accounts
     address public constant POLICY_GUARDIAN_MANAGER = 0x1111a407ca07005b696eD702E163955f27445394;
     address public constant POLICY_GUARDIAN = 0x2222939748d8F58b0e9EeFC257676EF4c560cBf4;
@@ -40,14 +41,9 @@ contract WaymontSafeExternalSignerTest is Test {
     uint256 constant public BOB_PRIVATE = 0x992b834bb9d4af04b3c03be0a8968ce7e8a380d7832c6f73997eed358929a8b0;
     address constant public JOE = 0x12341f365ee78AC432C4c5340e318E35F1A60655;
     uint256 constant public JOE_PRIVATE = 0x879b74cdb4a972d577f27f60e94fe225019d352b6a2848d4eb3af327303b7e38;
-
-    // User external signing devices
-    address constant public ALICE_EXT = 0xA11CE665A00A8CCdabDa8FD9bd332F3F762bBB1D;
-    uint256 constant public ALICE_EXT_PRIVATE = 0x218ea951344494c72dcca73e31dbcb391b83670a7594b7c261c8638ece7d7334;
-    address constant public BOB_EXT = 0xB0BCC981f5A75d55Dc7faCf49599E2c351Df6293;
-    uint256 constant public BOB_EXT_PRIVATE = 0x1adb610481bea9e16ed5c1d3223b7e0180d8b279d1c55242c16867703899bb36;
-    address constant public JOE_EXT = 0x1234051c1188414823A78Ddb03cF2D6fe8f9BF27;
-    uint256 constant public JOE_EXT_PRIVATE = 0x14daba645f7e785be462f836a36e5cb1c14ef7570198074443425e527fdd6e8b;
+    address constant public SAM = 0x1234051c1188414823A78Ddb03cF2D6fe8f9BF27;
+    uint256 constant public SAM_PRIVATE = 0x14daba645f7e785be462f836a36e5cb1c14ef7570198074443425e527fdd6e8b;
+    address constant public SAM_SCW = 0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa;
 
     // Replacement user signing device
     address constant public JOE_REPLACEMENT = 0xFFFF15bd7Fe7890D078bb4FB74CF1C44213dC9BC;
@@ -84,6 +80,10 @@ contract WaymontSafeExternalSignerTest is Test {
 
     // Dummy variable to be manipulated by the example test Safe
     uint256 public dummy;
+    uint256 public dummy2;
+
+    // Last unique ID used; used solely for the purpose of these tests as a seed for the next one (should be RANDOM in practice)
+    uint256 public lastUniqueId;
 
     function setUp() public {
         setUpSafeProxyFactory();
@@ -187,7 +187,6 @@ contract WaymontSafeExternalSignerTest is Test {
         address[] memory underlyingOwners,
         uint256 underlyingThreshold,
         CreateTimelockedRecoveryModuleParams memory moduleCreationParams,
-        address[] memory initialOverlyingSigners,
         address predictedExternalSignerInstanceAddress,
         address predictedTimelockedRecoveryModuleInstanceAddress,
         uint256 deploymentNonce,
@@ -254,11 +253,12 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function setUpWaymontSafe() public {
         // WaymontExternalSigner params
-        address[] memory underlyingOwners = new address[](3);
+        address[] memory underlyingOwners = new address[](4);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
-        uint256 underlyingThreshold = 2;
+        underlyingOwners[3] = SAM_SCW;
+        uint256 underlyingThreshold = 3;
         uint256 deploymentNonce = 4444;
 
         // Safe params--initiating signers are the signers that will remove themselves in favor of the `ExternalSigner` (but the WaymontSafePolicyGuardianSigner will stay)
@@ -341,7 +341,6 @@ contract WaymontSafeExternalSignerTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedExternalSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -360,7 +359,6 @@ contract WaymontSafeExternalSignerTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedExternalSignerInstanceAddress,
             badPredictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -373,7 +371,6 @@ contract WaymontSafeExternalSignerTest is Test {
             underlyingOwners,
             underlyingThreshold,
             moduleCreationParams,
-            initialOverlyingSigners,
             predictedExternalSignerInstanceAddress,
             predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
@@ -416,11 +413,12 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function testCannotCreateExternalSignerWithMismatchingDeploymentNonce() public {
         // WaymontSafeExternalSigner params
-        address[] memory underlyingOwners = new address[](3);
+        address[] memory underlyingOwners = new address[](4);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
-        uint256 underlyingThreshold = 2;
+        underlyingOwners[3] = SAM_SCW;
+        uint256 underlyingThreshold = 3;
         bool requirePolicyGuardianForReusableCalls = true;
         uint256 deploymentNonce = 5555;
 
@@ -454,11 +452,12 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function testCannotCreateExternalSignerWithSameParamsTwice() public {
         // WaymontSafeExternalSigner params
-        address[] memory underlyingOwners = new address[](3);
+        address[] memory underlyingOwners = new address[](4);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
-        uint256 underlyingThreshold = 2;
+        underlyingOwners[3] = SAM_SCW;
+        uint256 underlyingThreshold = 3;
         bool requirePolicyGuardianForReusableCalls = true;
         uint256 deploymentNonce = 4444;
 
@@ -492,11 +491,12 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function testCannotReinitializeExternalSigner() public {
         // WaymontSafeExternalSigner params
-        address[] memory underlyingOwners = new address[](3);
+        address[] memory underlyingOwners = new address[](4);
         underlyingOwners[0] = ALICE;
         underlyingOwners[1] = BOB;
         underlyingOwners[2] = JOE;
-        uint256 underlyingThreshold = 2;
+        underlyingOwners[3] = SAM_SCW;
+        uint256 underlyingThreshold = 3;
 
         // Try and fail to re-initialize the WaymontSafeExternalSigner instance
         vm.expectRevert("GS200");
@@ -765,9 +765,9 @@ contract WaymontSafeExternalSignerTest is Test {
         Enum.Operation operation,
         uint256 overlyingSignaturesBeforePolicyGuardian,
         bool useSecondaryPolicyGuardian
-    ) internal view returns (
-        bytes memory userSignature1,
-        bytes memory userSignature2,
+    ) internal returns (
+        bytes memory externalSignerOverlyingSignaturePointer,
+        bytes memory externalSignerOverlyingSignatureData,
         bytes memory policyGuardianOverlyingSignaturePointer,
         bytes memory policyGuardianOverlyingSignatureData
     ) {
@@ -776,11 +776,34 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Generate user signing device signature #1
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
-        userSignature1 = abi.encodePacked(r, s, v);
+        bytes[] memory topLevelExternalSignatures;
+        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
         // Generate user signing device signature #2
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        userSignature2 = abi.encodePacked(r, s, v + 4);
+        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+
+        // Generate user signing device signature #3
+        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
+        bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
+
+        // Wrap user signing device signature #3 with a fake SCW
+        topLevelExternalSignatures[2] = abi.encodePacked(
+            bytes32(uint256(uint160(SAM_SCW))),
+            uint256(3 * 65),
+            uint8(0)
+        );
+        bytes memory samScwOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            samUnderlyingSignature
+        );
+
+        // Mock fake SCW
+        vm.mockCall(
+            address(SAM_SCW),
+            abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, txHash, samUnderlyingSignature),
+            abi.encode(bytes4(0x1626ba7e))
+        );
 
         // Generate underlying/actual policy guardian signature
         (v, r, s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
@@ -795,6 +818,24 @@ contract WaymontSafeExternalSignerTest is Test {
         policyGuardianOverlyingSignatureData = abi.encodePacked(
             uint256(65),
             policyGuardianUnderlyingSignature
+        );
+
+        // Get packed ExternalSigner signatures
+        address[] memory externalSigners = new address[](3);
+        externalSigners[0] = ALICE;
+        externalSigners[1] = BOB;
+        externalSigners[2] = SAM_SCW;
+        bytes memory externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
+
+        // Generate overlying policy guardian smart contract signature
+        externalSignerOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(policyGuardianSigner)))),
+            uint256((overlyingSignaturesBeforePolicyGuardian + 1) * 65),
+            uint8(0)
+        );
+        externalSignerOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            externalSignatures
         );
     }
 
@@ -823,7 +864,7 @@ contract WaymontSafeExternalSignerTest is Test {
             else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
             // Pack user signatures
-            bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+            bytes memory packedUserSignatures = BOB > ALICE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
             // Generate overlying WaymontSafeExternalSigner signature
             bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -882,11 +923,41 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Generate user signing device signature #1 (to queue disabling)
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, txHash);
-        bytes memory userSignature1 = abi.encodePacked(r, s, v);
+        bytes[] memory topLevelExternalSignatures = new bytes[](3);
+        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
         // Generate user signing device signature #2 (to queue disabling)
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        bytes memory userSignature2 = abi.encodePacked(r, s, v + 4);
+        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+
+        // Generate user signing device signature #3 (to queue disabling)
+        (v, r, s) = vm.sign(SAM_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
+        bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
+
+        // Wrap user signing device signature #3 with a fake SCW (to queue disabling)
+        topLevelExternalSignatures[2] = abi.encodePacked(
+            bytes32(uint256(uint160(SAM_SCW))),
+            uint256(3 * 65),
+            uint8(0)
+        );
+        bytes memory samScwOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            samUnderlyingSignature
+        );
+
+        // Mock fake SCW
+        vm.mockCall(
+            address(SAM_SCW),
+            abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, txHash, samUnderlyingSignature),
+            abi.encode(bytes4(0x1626ba7e))
+        );
+
+        // Get packed ExternalSigner signatures (to queue disabling)
+        address[] memory externalSigners = new address[](3);
+        externalSigners[0] = ALICE;
+        externalSigners[1] = BOB;
+        externalSigners[2] = SAM_SCW;
+        bytes memory packedUserSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
 
         // Generate overlying policy guardian smart contract signature (used both to queue disabling and to execute disabling)
         bytes memory policyGuardianOverlyingSignaturePointer = abi.encodePacked(
@@ -898,9 +969,6 @@ contract WaymontSafeExternalSignerTest is Test {
             uint256(65),
             hex'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
         );
-
-        // Pack user signatures (to queue disabling)
-        bytes memory packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
 
         // Generate overlying WaymontSafeExternalSigner signature (to queue disabling)
         bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
@@ -928,16 +996,33 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Generate user signing device signature #1 (to execute disabling)
         (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-        userSignature1 = abi.encodePacked(r, s, v);
+        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
         // Generate user signing device signature #2 (to execute disabling)
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        userSignature2 = abi.encodePacked(r, s, v + 4);
+        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
 
-        // Pack user signatures
-        packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+        // Generate user signing device signature #3 (to execute disabling)
+        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
+        samUnderlyingSignature = abi.encodePacked(r, s, v);
 
-        // Generate overlying WaymontSafeExternalSigner signature
+        // Wrap user signing device signature #3 with a fake SCW (to execute disabling)
+        samScwOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            samUnderlyingSignature
+        );
+
+        // Mock fake SCW (to execute disabling)
+        vm.mockCall(
+            address(SAM_SCW),
+            abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, txHash, samUnderlyingSignature),
+            abi.encode(bytes4(0x1626ba7e))
+        );
+
+        // Get packed ExternalSigner signatures (to execute disabling)
+        packedUserSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
+
+        // Generate overlying WaymontSafeExternalSigner signature (to execute disabling)
         externalSignerOverlyingSignaturePointer = abi.encodePacked(
             bytes32(uint256(uint160(address(externalSignerInstance)))),
             uint256((65 * 2) + 32 + 65),
@@ -978,14 +1063,31 @@ contract WaymontSafeExternalSignerTest is Test {
 
             // Generate user signing device signature #1 (to queue disabling)
             (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-            userSignature1 = abi.encodePacked(r, s, v);
+            topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
             // Generate user signing device signature #2 (to queue disabling)
             (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-            userSignature2 = abi.encodePacked(r, s, v + 4);
+            topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
 
-            // Pack user signatures (to queue disabling)
-            packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+            // Generate user signing device signature #3
+            (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
+            samUnderlyingSignature = abi.encodePacked(r, s, v);
+
+            // Wrap user signing device signature #3 with a fake SCW
+            samScwOverlyingSignatureData = abi.encodePacked(
+                uint256(65),
+                samUnderlyingSignature
+            );
+
+            // Mock fake SCW
+            vm.mockCall(
+                address(SAM_SCW),
+                abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, txHash, samUnderlyingSignature),
+                abi.encode(bytes4(0x1626ba7e))
+            );
+
+            // Get packed ExternalSigner signatures
+            packedUserSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
 
             // Generate overlying WaymontSafeExternalSigner signature (to queue disabling)
             externalSignerOverlyingSignatureData = abi.encodePacked(
@@ -1016,14 +1118,31 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #1 (to execute disabling)
         (v, r, s) = vm.sign(ALICE_PRIVATE, txHash);
-        userSignature1 = abi.encodePacked(r, s, v);
+        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
 
         // AGAIN WITH NEW NONCE: Generate user signing device signature #2 (to execute disabling)
         (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txHash)));
-        userSignature2 = abi.encodePacked(r, s, v + 4);
+        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
 
-        // AGAIN WITH NEW NONCE: Pack user signatures
-        packedUserSignatures = BOB_PRIVATE > ALICE_PRIVATE ? abi.encodePacked(userSignature1, userSignature2) : abi.encodePacked(userSignature2, userSignature1);
+        // AGAIN WITH NEW NONCE: Generate user signing device signature #3
+        (v, r, s) = vm.sign(SAM_PRIVATE, txHash);
+        samUnderlyingSignature = abi.encodePacked(r, s, v);
+
+        // AGAIN WITH NEW NONCE: Wrap user signing device signature #3 with a fake SCW
+        samScwOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            samUnderlyingSignature
+        );
+
+        // AGAIN WITH NEW NONCE: Mock fake SCW
+        vm.mockCall(
+            address(SAM_SCW),
+            abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, txHash, samUnderlyingSignature),
+            abi.encode(bytes4(0x1626ba7e))
+        );
+
+        // AGAIN WITH NEW NONCE: Get packed ExternalSigner signatures
+        packedUserSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
 
         // AGAIN WITH NEW NONCE: Generate overlying WaymontSafeExternalSigner signature
         externalSignerOverlyingSignatureData = abi.encodePacked(
@@ -1315,5 +1434,249 @@ contract WaymontSafeExternalSignerTest is Test {
         assert(msg.sender == address(safeInstance));
         assert(msg.value == 1337);
         dummy = arg;
+    }
+
+    function sampleWalletOnlyFunction2(uint256 arg) public payable {
+        // Example function to be called by the Safe
+        assert(msg.sender == address(safeInstance));
+        assert(msg.value == 1338);
+        dummy2 = arg;
+    }
+
+    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options) internal {
+        // Input validation
+        assert(to.length > 0 && to.length == value.length && to.length == data.length);
+
+        // Get external signatures param
+        Enum.Operation[] memory operation = new Enum.Operation[](2);
+        operation[0] = Enum.Operation.Call;
+        operation[1] = Enum.Operation.Call;
+        (bytes memory externalSignatures, bytes32[][] memory merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines);
+
+        // For each TX:
+        for (uint256 i = 0; i < to.length; i++) {
+            // Get signature data:
+            bytes memory packedOverlyingSignatures;
+            {
+                // Get signatures
+                (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
+                if (options.testInvalidUserSignature) externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] = externalSignatures[SAM > ALICE || SAM > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
+
+                // Generate overlying WaymontSafeExternalSigner signature
+                bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
+                    bytes32(uint256(uint160(address(externalSignerInstance)))),
+                    uint256(0),
+                    uint8(1)
+                );
+
+                // Pack all overlying signatures (in correct order)
+                if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+                    packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
+                } else {
+                    packedOverlyingSignatures = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
+                }
+            }
+
+            // Safe.execTransaction
+            if (options.testInvalidUserSignature) vm.expectRevert("GS026");
+            else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
+            else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
+            else if (options.expectRevert) vm.expectRevert("GS013");
+            else if (options.expectEmitPolicyGuardianDisabledOnSafe) {
+                vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+                emit PolicyGuardianDisabledOnSafe(safeInstance, false);
+            } else if (options.expectEmitPolicyGuardianTimelockChanged) {
+                vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+                emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
+            }
+            WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
+                externalSignatures,
+                uniqueIds[i],
+                groupUniqueIds[i],
+                deadlines[i],
+                merkleProofs[i]
+            );
+            externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
+        }
+    }
+
+    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines) internal {
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0));
+    }
+
+    function _encodeNonIncrementalTransactionData(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address refundReceiver,
+        uint256 uniqueId,
+        uint256 groupUniqueId,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
+        bytes32 safeTxHash = keccak256(abi.encode(
+            EXTERNAL_SIGNER_SAFE_TX_TYPEHASH,
+            to,
+            value,
+            keccak256(data),
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            uniqueId,
+            groupUniqueId,
+            deadline
+        ));
+        return abi.encodePacked(bytes1(0x19), bytes1(0x01), externalSignerInstance.domainSeparator(), safeTxHash);
+    }
+
+    function _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(
+        address[] memory to,
+        uint256[] memory value,
+        bytes[] memory data,
+        Enum.Operation[] memory operation,
+        uint256[] memory uniqueId,
+        uint256[] memory groupUniqueId,
+        uint256[] memory deadline
+    ) internal returns (bytes memory externalSignatures, bytes32[][] memory merkleProofs) {
+        // Input validation
+        assert(to.length > 0 && to.length == value.length && to.length == data.length);
+        assert(to.length <= 2); // Merkle proof code below only supports up to 2 TXs
+        
+        // Generate merkle tree
+        // NOTE: Merkle proof code below only supports up to 2 TXs
+        bytes32 root;
+
+        if (to.length == 2) {
+            // Generate data hash for the new transactions
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), uniqueId[0], groupUniqueId[0], deadline[0]));
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, 0, address(0), payable(address(0)), uniqueId[1], groupUniqueId[1], deadline[1]));
+
+            // Get merkle root
+            root = keccak256(txHashA < txHashB ? abi.encode(txHashA, txHashB) : abi.encode(txHashB, txHashA));
+
+            // Build merkle proofs
+            merkleProofs = new bytes32[][](2);
+            merkleProofs[0] = new bytes32[](1);
+            merkleProofs[0][0] = txHashB;
+            merkleProofs[1] = new bytes32[](1);
+            merkleProofs[1][0] = txHashA;
+        } else {
+            // Only one level in merkle tree
+            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), uniqueId[0], groupUniqueId[0], deadline[0]));
+        }
+
+        // Generate user signing device signature #1
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ALICE_PRIVATE, root);
+        bytes[] memory topLevelExternalSignatures;
+        topLevelExternalSignatures[0] = abi.encodePacked(r, s, v);
+
+        // Generate user signing device signature #2
+        (v, r, s) = vm.sign(BOB_PRIVATE, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", root)));
+        topLevelExternalSignatures[1] = abi.encodePacked(r, s, v + 4);
+
+        // Generate user signing device signature #3
+        (v, r, s) = vm.sign(SAM_PRIVATE, root);
+        bytes memory samUnderlyingSignature = abi.encodePacked(r, s, v);
+
+        // Wrap user signing device signature #3 with a fake SCW
+        topLevelExternalSignatures[2] = abi.encodePacked(
+            bytes32(uint256(uint160(SAM_SCW))),
+            uint256(3 * 65),
+            uint8(0)
+        );
+        bytes memory samScwOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            samUnderlyingSignature
+        );
+
+        // Mock fake SCW
+        vm.mockCall(
+            address(SAM_SCW),
+            abi.encodeWithSelector(IStandardSignatureValidator.isValidSignature.selector, root, samUnderlyingSignature),
+            abi.encode(bytes4(0x1626ba7e))
+        );
+
+        // Return packed signatures
+        address[] memory externalSigners = new address[](3);
+        externalSigners[0] = ALICE;
+        externalSigners[1] = BOB;
+        externalSigners[2] = SAM_SCW;
+        externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
+    }
+
+    function _getOverlyingPolicyGuardianSignature(
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 overlyingSignaturesBeforePolicyGuardian,
+        bool useSecondaryPolicyGuardian
+    ) internal view returns (
+        bytes memory policyGuardianOverlyingSignaturePointer,
+        bytes memory policyGuardianOverlyingSignatureData
+    ) {
+        // Generate data hash for the new transaction
+        bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, operation, 0, 0, 0, address(0), payable(address(0)), safeInstance.nonce()));
+
+        // Generate underlying/actual policy guardian signature
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
+        bytes memory policyGuardianUnderlyingSignature = abi.encodePacked(r, s, v);
+
+        // Generate overlying policy guardian smart contract signature
+        policyGuardianOverlyingSignaturePointer = abi.encodePacked(
+            bytes32(uint256(uint160(address(policyGuardianSigner)))),
+            uint256((overlyingSignaturesBeforePolicyGuardian + 1) * 65),
+            uint8(0)
+        );
+        policyGuardianOverlyingSignatureData = abi.encodePacked(
+            uint256(65),
+            policyGuardianUnderlyingSignature
+        );
+    }
+
+    function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
+        // Send ETH to Safe
+        vm.deal(address(safeInstance), 1337 + 1338);
+
+        // Transaction params
+        address[] memory to;
+        to[0] = address(this);
+        to[1] = address(this);
+        uint256[] memory value;
+        value[0] = 1337;
+        value[1] = 1338;
+        bytes[] memory data;
+        data[0] = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
+        data[1] = abi.encodeWithSelector(this.sampleWalletOnlyFunction2.selector, 33333333);
+
+        // Generate unique IDs, group unique IDs, and deadlines
+        uint256[] memory uniqueIds = new uint256[](2);
+        lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
+        uniqueIds[0] = lastUniqueId;
+        lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
+        uniqueIds[1] = lastUniqueId;
+        uint256[] memory groupUniqueIds = new uint256[](2);
+        uint256[] memory deadlines = new uint256[](2);
+
+        // Safe.execTransaction expecting revert
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, true, false, false, false, false, 0));
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, true, false, false, false, 0));
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, true, false, false, 0));
+
+        // Safe.execTransaction
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines);
+
+        // Assert TX succeeded
+        assert(dummy == 22222222);
+        assert(dummy2 == 33333333);
     }
 }
