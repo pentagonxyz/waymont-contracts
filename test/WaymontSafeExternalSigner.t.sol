@@ -1450,18 +1450,37 @@ contract WaymontSafeExternalSignerTest is Test {
         dummy2 = arg;
     }
 
-    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, bool testExpiredTx) internal {
+    struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions {
+        bool testExpiredTx;
+        bool testSigningMultipleChainIdsTogether;
+    }
+
+    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions) internal {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length);
 
         // Get external signatures param
-        Enum.Operation[] memory operation = new Enum.Operation[](2);
-        operation[0] = Enum.Operation.Call;
-        operation[1] = Enum.Operation.Call;
-        (bytes memory externalSignatures, bytes32[][] memory merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines);
+        bytes memory externalSignatures;
+        bytes32[][] memory merkleProofs;
+
+        // Scope out to avoid "stack too deep"
+        {
+            Enum.Operation[] memory operation = new Enum.Operation[](2);
+            operation[0] = Enum.Operation.Call;
+            operation[1] = Enum.Operation.Call;
+            (externalSignatures, merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether);
+        }
 
         // For each TX:
+        uint256 initialChainId;
+
         for (uint256 i = 0; i < to.length; i++) {
+            // Change the chain ID if testing multiple chain IDs
+            if (moreOptions.testSigningMultipleChainIdsTogether && i == 1) {
+                initialChainId = block.chainid;
+                vm.chainId(1234);
+            }
+
             // Get signature data:
             bytes memory packedOverlyingSignatures;
             {
@@ -1497,7 +1516,7 @@ contract WaymontSafeExternalSignerTest is Test {
             } else if (options.expectEmitPolicyGuardianTimelockChanged) {
                 vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
                 emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
-            } else if (testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
+            } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
 
             // ExternalSigner.execTransaction
             WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1509,10 +1528,13 @@ contract WaymontSafeExternalSignerTest is Test {
             );
             externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
         }
+
+        // Revert chain ID if necessary
+        if (moreOptions.testSigningMultipleChainIdsTogether && to.length > 1) vm.chainId(initialChainId);
     }
 
     function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines) internal {
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), false);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false));
     }
 
     struct ExecNonIncrementalTransactionSigningParams {
@@ -1558,7 +1580,8 @@ contract WaymontSafeExternalSignerTest is Test {
         Enum.Operation[] memory operation,
         uint256[] memory uniqueId,
         uint256[] memory groupUniqueId,
-        uint256[] memory deadline
+        uint256[] memory deadline,
+        bool testSigningMultipleChainIdsTogether
     ) internal returns (bytes memory externalSignatures, bytes32[][] memory merkleProofs) {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length && to.length == uniqueId.length && to.length == groupUniqueId.length && to.length == deadline.length);
@@ -1573,7 +1596,13 @@ contract WaymontSafeExternalSignerTest is Test {
             ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
             bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), additionalParams));
             additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1]);
+            uint256 initialChainId;
+            if (testSigningMultipleChainIdsTogether) {
+                initialChainId = block.chainid;
+                vm.chainId(1234);
+            }
             bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, 0, address(0), payable(address(0)), additionalParams));
+            if (testSigningMultipleChainIdsTogether) vm.chainId(initialChainId);
 
             // Get merkle root
             root = keccak256(txHashA < txHashB ? abi.encode(txHashA, txHashB) : abi.encode(txHashB, txHashA));
@@ -1659,7 +1688,7 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), 1337 + 1338);
 
@@ -1686,23 +1715,37 @@ contract WaymontSafeExternalSignerTest is Test {
         deadlines[1] = block.timestamp + 365 days;
 
         // Safe.execTransaction expecting revert
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, true, false, false, false, false, 0), false);
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, true, false, false, false, 0), false);
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, true, false, false, 0), false);
+        TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
+        options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
+        options = TestExecTransactionOptions(false, false, false, false, true, false, false, 0);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
 
         // Expect revert if expired
         vm.warp(block.timestamp + 365 days + 1 seconds);
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), true);
+        options2.testExpiredTx = true;
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Reset deadlines
         deadlines[0] = block.timestamp + 365 days;
         deadlines[1] = block.timestamp + 365 days;
 
         // Safe.execTransaction
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines);
+        options2.testExpiredTx = false;
+        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Assert TX succeeded
         assert(dummy == 22222222);
         assert(dummy2 == 33333333);
+    }
+
+    function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false);
+    }
+
+    function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true);
     }
 }
