@@ -1453,6 +1453,7 @@ contract WaymontSafeExternalSignerTest is Test {
     struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions {
         bool testExpiredTx;
         bool testSigningMultipleChainIdsTogether;
+        bool testMultiUse;
     }
 
     function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions) internal {
@@ -1471,70 +1472,69 @@ contract WaymontSafeExternalSignerTest is Test {
             (externalSignatures, merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether);
         }
 
-        // For each TX:
-        uint256 initialChainId;
+        // If testing multi-use, loop this code a second time:
+        for (uint256 round = 0; round < (moreOptions.testMultiUse ? 2 : 1); round++) {
+            // For each TX:
+            uint256 initialChainId;
 
-        for (uint256 i = 0; i < to.length; i++) {
-            // Change the chain ID if testing multiple chain IDs
-            if (moreOptions.testSigningMultipleChainIdsTogether && i == 1) {
-                initialChainId = block.chainid;
-                vm.chainId(1234);
-            }
-
-            // Get signature data:
-            bytes memory packedOverlyingSignatures;
-            {
-                // Get signatures
-                (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
-                if (options.testInvalidUserSignature) externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
-                else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
-                else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
-
-                // Generate overlying WaymontSafeExternalSigner signature
-                bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
-                    bytes32(uint256(uint160(address(externalSignerInstance)))),
-                    uint256(0),
-                    uint8(1)
-                );
-
-                // Pack all overlying signatures (in correct order)
-                if (address(externalSignerInstance) > address(policyGuardianSigner)) {
-                    packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
-                } else {
-                    packedOverlyingSignatures = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
+            for (uint256 i = 0; i < to.length; i++) {
+                // Change the chain ID if testing multiple chain IDs
+                if (moreOptions.testSigningMultipleChainIdsTogether && i == 1) {
+                    initialChainId = block.chainid;
+                    vm.chainId(1234);
                 }
+
+                // Get signature data:
+                bytes memory packedOverlyingSignatures;
+                {
+                    // Get signatures
+                    (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
+                    if (options.testInvalidUserSignature) externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                    else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                    else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
+
+                    // Generate overlying WaymontSafeExternalSigner signature
+                    bytes memory externalSignerOverlyingSignaturePointer = abi.encodePacked(
+                        bytes32(uint256(uint160(address(externalSignerInstance)))),
+                        uint256(0),
+                        uint8(1)
+                    );
+
+                    // Pack all overlying signatures (in correct order)
+                    if (address(externalSignerInstance) > address(policyGuardianSigner)) {
+                        packedOverlyingSignatures = abi.encodePacked(policyGuardianOverlyingSignaturePointer, externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
+                    } else {
+                        packedOverlyingSignatures = abi.encodePacked(externalSignerOverlyingSignaturePointer, policyGuardianOverlyingSignaturePointer, policyGuardianOverlyingSignatureData);
+                    }
+                }
+
+                // Expect reverts and/or emits if testing certain things
+                if (options.testInvalidUserSignature) vm.expectRevert("GS026");
+                else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
+                else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
+                else if (options.expectRevert) vm.expectRevert("GS013");
+                else if (options.expectEmitPolicyGuardianDisabledOnSafe) {
+                    vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+                    emit PolicyGuardianDisabledOnSafe(safeInstance, false);
+                } else if (options.expectEmitPolicyGuardianTimelockChanged) {
+                    vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
+                    emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
+                } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
+
+                // ExternalSigner.execTransaction
+                WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
+                    externalSignatures,
+                    uniqueIds[i],
+                    groupUniqueIds[i],
+                    deadlines[i],
+                    merkleProofs[i]
+                );
+                externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
             }
 
-            // Expect reverts and/or emits if testing certain things
-            if (options.testInvalidUserSignature) vm.expectRevert("GS026");
-            else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
-            else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
-            else if (options.expectRevert) vm.expectRevert("GS013");
-            else if (options.expectEmitPolicyGuardianDisabledOnSafe) {
-                vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
-                emit PolicyGuardianDisabledOnSafe(safeInstance, false);
-            } else if (options.expectEmitPolicyGuardianTimelockChanged) {
-                vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
-                emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
-            } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
-
-            // ExternalSigner.execTransaction
-            WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
-                externalSignatures,
-                uniqueIds[i],
-                groupUniqueIds[i],
-                deadlines[i],
-                merkleProofs[i]
-            );
-            externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
+            // Revert chain ID if necessary
+            if (moreOptions.testSigningMultipleChainIdsTogether && to.length > 1) vm.chainId(initialChainId);
         }
-
-        // Revert chain ID if necessary
-        if (moreOptions.testSigningMultipleChainIdsTogether && to.length > 1) vm.chainId(initialChainId);
-    }
-
-    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines) internal {
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false));
     }
 
     struct ExecNonIncrementalTransactionSigningParams {
@@ -1688,7 +1688,7 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether) internal {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), 1337 + 1338);
 
@@ -1703,20 +1703,32 @@ contract WaymontSafeExternalSignerTest is Test {
         data[0] = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
         data[1] = abi.encodeWithSelector(this.sampleWalletOnlyFunction2.selector, 33333333);
 
-        // Generate unique IDs, group unique IDs, and deadlines
+        // Set unique IDs and/or group unique IDs
         uint256[] memory uniqueIds = new uint256[](2);
-        lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
-        uniqueIds[0] = lastUniqueId;
-        lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
-        uniqueIds[1] = lastUniqueId;
         uint256[] memory groupUniqueIds = new uint256[](2);
+
+        // Use groupUniqueIds if multiUse or uniqueIds by default
+        if (testMultiUse) {
+            // Simulate random ID generation--IN PRACTICE THESE SHOULD ALWAYS BE RANDOM
+            lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
+            groupUniqueIds[0] = lastUniqueId;
+            groupUniqueIds[1] = lastUniqueId;
+        } else {
+            // Simulate random ID generation--IN PRACTICE THESE SHOULD ALWAYS BE RANDOM
+            lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
+            uniqueIds[0] = lastUniqueId;
+            lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
+            uniqueIds[1] = lastUniqueId;
+        }
+
+        // Set deadlines
         uint256[] memory deadlines = new uint256[](2);
         deadlines[0] = block.timestamp + 365 days;
         deadlines[1] = block.timestamp + 365 days;
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
         options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
@@ -1742,10 +1754,14 @@ contract WaymontSafeExternalSignerTest is Test {
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false);
     }
 
     function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false);
+    }
+
+    function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogether() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true);
     }
 }
