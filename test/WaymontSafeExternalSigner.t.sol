@@ -1492,7 +1492,12 @@ contract WaymontSafeExternalSignerTest is Test {
                 bytes memory packedOverlyingSignatures;
                 {
                     // Get signatures
-                    (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 1, options.useSecondaryPolicyGuardian);
+                    (
+                        bytes memory policyGuardianOverlyingSignaturePointer,
+                        bytes memory policyGuardianOverlyingSignatureData
+                    ) = _getOverlyingPolicyGuardianSignature(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 1, options.useSecondaryPolicyGuardian);
+
+                    // Tamper with raw signatures for negative test cases only
                     if (options.testInvalidUserSignature) vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
@@ -1617,7 +1622,18 @@ contract WaymontSafeExternalSignerTest is Test {
 
             // Generate data hash A
             ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(txs[0].uniqueId, txs[0].groupUniqueId, txs[0].deadline);
-            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(txs[0].to, txs[0].value, txs[0].data, txs[0].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(
+                txs[0].to,
+                txs[0].value,
+                txs[0].data,
+                txs[0].operation,
+                vars.safeTxGas,
+                vars.baseGas,
+                vars.gasPrice,
+                address(0),
+                vars.refundReceiver,
+                additionalParams
+            ));
 
             // Store current chain ID and switch to other chain ID to generate TX B data hash
             uint256 initialChainId;
@@ -1629,7 +1645,18 @@ contract WaymontSafeExternalSignerTest is Test {
 
             // Generate TX B data hash
             additionalParams = ExecNonIncrementalTransactionSigningParams(txs[1].uniqueId, txs[1].groupUniqueId, txs[1].deadline);
-            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(txs[1].to, txs[1].value, txs[1].data, txs[1].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(
+                txs[1].to,
+                txs[1].value,
+                txs[1].data,
+                txs[1].operation,
+                vars.safeTxGas,
+                vars.baseGas,
+                vars.gasPrice,
+                address(0),
+                vars.refundReceiver,
+                additionalParams
+            ));
 
             // Back to initial chain ID
             if (testSigningMultipleChainIdsTogether) vm.chainId(initialChainId);
@@ -1646,7 +1673,18 @@ contract WaymontSafeExternalSignerTest is Test {
         } else {
             // Only one level in merkle tree
             ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(txs[0].uniqueId, txs[0].groupUniqueId, txs[0].deadline);
-            root = keccak256(_encodeNonIncrementalTransactionData(txs[0].to, txs[0].value, txs[0].data, txs[0].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
+            root = keccak256(_encodeNonIncrementalTransactionData(
+                txs[0].to,
+                txs[0].value,
+                txs[0].data,
+                txs[0].operation,
+                vars.safeTxGas,
+                vars.baseGas,
+                vars.gasPrice,
+                address(0),
+                vars.refundReceiver,
+                additionalParams
+            ));
         }
 
         // Generate user signing device signature #1
