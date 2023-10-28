@@ -1536,7 +1536,7 @@ contract WaymontSafeExternalSignerTest is Test {
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
                 else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && !moreOptions.testMultiUse && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
                 else if (moreOptions.testExecBlacklisted && moreOptions.testMultiUse) vm.expectRevert("Function call group unique ID has been blacklisted.");
-                else if (moreOptions.testGasTank && moreOptions.testInsufficientGasTank) vm.expectRevert(stdError.arithmeticError);
+                else if (moreOptions.testGasTank && moreOptions.testInsufficientGasTank && (round * txs.length) + i >= 3) vm.expectRevert(stdError.arithmeticError);
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1816,7 +1816,7 @@ contract WaymontSafeExternalSignerTest is Test {
         }
 
         // Set gas tank
-        if (moreOptionsRaw.testGasTank) _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 6e6 : 12e6) * tx.gasprice));
+        if (moreOptionsRaw.testGasTank) _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 9e6 : 12e6) * tx.gasprice));
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
