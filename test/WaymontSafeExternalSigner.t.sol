@@ -1488,6 +1488,10 @@ contract WaymontSafeExternalSignerTest is Test {
                     vm.chainId(1234);
                 }
 
+                // If testing gas tanks (for multi-use function calls), set gas refund variables for Safe TXs
+                GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables memory vars2;
+                if (moreOptions.testGasTank) vars2 = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, address(0xC0FFEE)); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
+
                 // Get signature data:
                 bytes memory packedOverlyingSignatures;
                 {
@@ -1495,7 +1499,7 @@ contract WaymontSafeExternalSignerTest is Test {
                     (
                         bytes memory policyGuardianOverlyingSignaturePointer,
                         bytes memory policyGuardianOverlyingSignatureData
-                    ) = _getOverlyingPolicyGuardianSignature(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 1, options.useSecondaryPolicyGuardian);
+                    ) = _getOverlyingPolicyGuardianSignature(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 1, options.useSecondaryPolicyGuardian, vars2);
 
                     // Tamper with raw signatures for negative test cases only
                     if (options.testInvalidUserSignature) vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
@@ -1535,8 +1539,6 @@ contract WaymontSafeExternalSignerTest is Test {
                 else if (moreOptions.testGasTank && moreOptions.testInsufficientGasTank) vm.expectRevert(stdError.arithmeticError);
 
                 // ExternalSigner.execTransaction
-                GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables memory vars2;
-                if (moreOptions.testGasTank) vars2 = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, address(0xC0FFEE)); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
                     vars.externalSignatures,
                     txs[i].uniqueId,
@@ -1746,13 +1748,14 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes memory data,
         Enum.Operation operation,
         uint256 overlyingSignaturesBeforePolicyGuardian,
-        bool useSecondaryPolicyGuardian
+        bool useSecondaryPolicyGuardian,
+        GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables memory gasVars
     ) internal view returns (
         bytes memory policyGuardianOverlyingSignaturePointer,
         bytes memory policyGuardianOverlyingSignatureData
     ) {
         // Generate data hash for the new transaction
-        bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, operation, 0, 0, 0, address(0), payable(address(0)), safeInstance.nonce()));
+        bytes32 txHash = keccak256(safeInstance.encodeTransactionData(to, value, data, operation, gasVars.safeTxGas, gasVars.baseGas, gasVars.gasPrice, address(0), payable(gasVars.refundReceiver), safeInstance.nonce()));
 
         // Generate underlying/actual policy guardian signature
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(useSecondaryPolicyGuardian ? SECONDARY_POLICY_GUARDIAN_PRIVATE : POLICY_GUARDIAN_PRIVATE, txHash);
