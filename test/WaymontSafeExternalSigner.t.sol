@@ -1696,7 +1696,7 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse, bool testMultiUseOfSingleUse, bool testExecBlacklisted) internal {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse, bool testMultiUseOfSingleUse, bool testExecBlacklisted, bool testExpired) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), (1337 + 1338) * (testMultiUse ? 2 : 1));
 
@@ -1743,14 +1743,11 @@ contract WaymontSafeExternalSignerTest is Test {
         options = TestExecTransactionOptions(false, false, false, false, true, false, false, 0);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
 
-        // Expect revert if expired
-        vm.warp(block.timestamp + 365 days + 1 seconds);
-        options2.testExpiredTx = true;
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
-
-        // Reset deadlines
-        deadlines[0] = block.timestamp + 365 days;
-        deadlines[1] = block.timestamp + 365 days;
+        // Expect revert when expired if specified in test options
+        if (testExpired) {
+            vm.warp(block.timestamp + 365 days + 1 seconds);
+            options2.testExpiredTx = true;
+        }
 
         // If option is set, test blacklisting
         if (testExecBlacklisted) {
@@ -1759,38 +1756,41 @@ contract WaymontSafeExternalSignerTest is Test {
         }
 
         // Safe.execTransaction
-        options2.testExpiredTx = false;
         options2.testMultiUseOfSingleUse = testMultiUseOfSingleUse;
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Assert TX succeeded
-        if (!testExecBlacklisted) {
+        if (!testExpired && !testExecBlacklisted) {
             assert(dummy == 22222222);
             assert(dummy2 == 33333333);
         }
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, false, false);
     }
 
     function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false, false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false, false, false, false);
     }
 
     function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, false, false);
     }
 
     function testCannotRepeatedlyExecSingleUseNonIncrementalTransactions() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, true, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, true, false, false);
     }
 
     function testCannotExecBlacklistedNonIncrementalTransaction() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, true, false);
     }
 
     function testCannotExecBlacklistedMultiUseTransaction() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, true, false);
+    }
+
+    function testCannotExecExpiredNonIncrementalTransactions() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, false, true);
     }
 }
