@@ -1773,6 +1773,12 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
+    function testSetGasTankValue() public {
+        uint256 gasTankValue = 1234;
+        _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, gasTankValue));
+        assert(externalSignerInstance.reusableFunctionCallGasTank() == gasTankValue);
+    }
+
     function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(
         TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptionsRaw,
         bool skipPolicyGuardianAssertions
