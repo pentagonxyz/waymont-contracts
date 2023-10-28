@@ -1694,7 +1694,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse) internal {
         // Send ETH to Safe
-        vm.deal(address(safeInstance), 1337 + 1338);
+        vm.deal(address(safeInstance), (1337 + 1338) * (testMultiUse ? 2 : 1));
 
         // Transaction params
         address[] memory to = new address[](2);
