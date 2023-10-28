@@ -1454,6 +1454,7 @@ contract WaymontSafeExternalSignerTest is Test {
         bool testExpiredTx;
         bool testSigningMultipleChainIdsTogether;
         bool testMultiUse;
+        bool testMultiUseOfSingleUse;
     }
 
     struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables {
@@ -1477,7 +1478,7 @@ contract WaymontSafeExternalSignerTest is Test {
         }
 
         // If testing multi-use, loop this code a second time:
-        for (uint256 round = 0; round < (moreOptions.testMultiUse ? 2 : 1); round++) {
+        for (uint256 round = 0; round < (moreOptions.testMultiUse || moreOptions.testMultiUseOfSingleUse ? 2 : 1); round++) {
             // For each TX:
             uint256 initialChainId;
 
@@ -1524,6 +1525,7 @@ contract WaymontSafeExternalSignerTest is Test {
                     vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
                     emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
+                else if (moreOptions.testMultiUseOfSingleUse && round > 0) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1692,7 +1694,7 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse) internal {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse, bool testMultiUseOfSingleUse) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), (1337 + 1338) * (testMultiUse ? 2 : 1));
 
@@ -1732,7 +1734,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse, false);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
         options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
@@ -1750,6 +1752,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Safe.execTransaction
         options2.testExpiredTx = false;
+        options2.testMultiUseOfSingleUse = testMultiUseOfSingleUse;
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Assert TX succeeded
@@ -1758,14 +1761,18 @@ contract WaymontSafeExternalSignerTest is Test {
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false);
     }
 
     function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false, false);
     }
 
     function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false);
+    }
+
+    function testCannotRepeatedlyExecSingleUseNonIncrementalTransactions() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, true);
     }
 }
