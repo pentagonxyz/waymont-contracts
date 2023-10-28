@@ -1526,7 +1526,8 @@ contract WaymontSafeExternalSignerTest is Test {
                     vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
                     emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
-                else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
+                else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && !moreOptions.testMultiUse && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
+                else if (moreOptions.testExecBlacklisted && moreOptions.testMultiUse) vm.expectRevert("Function call group unique ID has been blacklisted.");
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1787,5 +1788,9 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function testCannotExecBlacklistedNonIncrementalTransaction() public {
         _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, true);
+    }
+
+    function testCannotExecBlacklistedMultiUseTransaction() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, true);
     }
 }
