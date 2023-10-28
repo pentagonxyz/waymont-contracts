@@ -1455,6 +1455,7 @@ contract WaymontSafeExternalSignerTest is Test {
         bool testSigningMultipleChainIdsTogether;
         bool testMultiUse;
         bool testMultiUseOfSingleUse;
+        bool testExecBlacklisted;
     }
 
     struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables {
@@ -1525,7 +1526,7 @@ contract WaymontSafeExternalSignerTest is Test {
                     vm.expectEmit(true, false, false, true, address(policyGuardianSigner));
                     emit PolicyGuardianTimelockChanged(safeInstance, options.newPolicyGuardianTimelock);
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
-                else if (moreOptions.testMultiUseOfSingleUse && round > 0) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
+                else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1694,7 +1695,7 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse, bool testMultiUseOfSingleUse) internal {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(bool testSigningMultipleChainIdsTogether, bool testMultiUse, bool testMultiUseOfSingleUse, bool testExecBlacklisted) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), (1337 + 1338) * (testMultiUse ? 2 : 1));
 
@@ -1734,7 +1735,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse, false);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse, false, testExecBlacklisted);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
         options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
@@ -1750,29 +1751,41 @@ contract WaymontSafeExternalSignerTest is Test {
         deadlines[0] = block.timestamp + 365 days;
         deadlines[1] = block.timestamp + 365 days;
 
+        // If option is set, test blacklisting
+        if (testExecBlacklisted) {
+            bytes memory data2 = abi.encodeWithSelector(externalSignerInstance.blacklistFunctionCall.selector, testMultiUse ? groupUniqueIds[1] : uniqueIds[1]);
+            _execTransaction(address(externalSignerInstance), 0, data2);
+        }
+
         // Safe.execTransaction
         options2.testExpiredTx = false;
         options2.testMultiUseOfSingleUse = testMultiUseOfSingleUse;
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Assert TX succeeded
-        assert(dummy == 22222222);
-        assert(dummy2 == 33333333);
+        if (!testExecBlacklisted) {
+            assert(dummy == 22222222);
+            assert(dummy2 == 33333333);
+        }
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, false);
     }
 
     function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(true, false, false, false);
     }
 
     function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, false);
     }
 
     function testCannotRepeatedlyExecSingleUseNonIncrementalTransactions() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, true, false);
+    }
+
+    function testCannotExecBlacklistedNonIncrementalTransaction() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, false, false, true);
     }
 }
