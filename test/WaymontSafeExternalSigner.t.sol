@@ -1468,7 +1468,16 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes32[][] merkleProofs;
     }
 
-    function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions) internal {
+    function _separatelyExecNonIncrementalTransactionsSignedTogether(
+        address[] memory to,
+        uint256[] memory value,
+        bytes[] memory data,
+        uint256[] memory uniqueIds,
+        uint256[] memory groupUniqueIds,
+        uint256[] memory deadlines,
+        TestExecTransactionOptions memory options,
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions
+    ) internal {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length);
 
@@ -1614,8 +1623,7 @@ contract WaymontSafeExternalSignerTest is Test {
             address refundReceiver = payable(testGasTank ? address(0xC0FFEE) : address(0));
 
             // Generate data hash A
-            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
-            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, gasPrice, address(0), refundReceiver, additionalParams));
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, gasPrice, address(0), refundReceiver, ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0])));
 
             // Store current chain ID and switch to other chain ID to generate TX B data hash
             uint256 initialChainId;
@@ -1626,8 +1634,7 @@ contract WaymontSafeExternalSignerTest is Test {
             }
 
             // Generate TX B data hash
-            additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1]);
-            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, gasPrice, address(0), refundReceiver, additionalParams));
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, gasPrice, address(0), refundReceiver, ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1])));
 
             // Back to initial chain ID
             if (testSigningMultipleChainIdsTogether) vm.chainId(initialChainId);
@@ -1643,8 +1650,7 @@ contract WaymontSafeExternalSignerTest is Test {
             merkleProofs[1][0] = txHashA;
         } else {
             // Only one level in merkle tree
-            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
-            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), additionalParams));
+            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0])));
         }
 
         // Generate user signing device signature #1
