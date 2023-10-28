@@ -1821,7 +1821,9 @@ contract WaymontSafeExternalSignerTest is Test {
         if (moreOptionsRaw.testGasTank) {
             initialVmGasPrice = tx.gasprice;
             vm.txGasPrice(2); // Set tx.gasprice to 2 for example purposes
-            _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 9e6 : 12e6) * tx.gasprice));
+            uint256 gasTankValue = (moreOptionsRaw.testInsufficientGasTank ? 9e6 : 12e6) * tx.gasprice;
+            _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, gasTankValue));
+            vm.deal(address(safeInstance), gasTankValue);
         }
 
         // Safe.execTransaction expecting revert
