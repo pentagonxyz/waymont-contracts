@@ -160,6 +160,7 @@ contract WaymontSafeExternalSignerTest is Test {
         uint256 recoveryThreshold;
         uint256 recoverySigningTimelock;
         bool requirePolicyGuardianForRecovery;
+        address predictedTimelockedRecoveryModuleInstanceAddress;
     }
 
     function _packSignaturesOrderedBySigner(bytes[] memory signatures, address[] memory signers) internal pure returns (bytes memory packedOrderedSignatures) {
@@ -324,15 +325,15 @@ contract WaymontSafeExternalSignerTest is Test {
                 recoverySigners: recoverySigners,
                 recoveryThreshold: 2,
                 recoverySigningTimelock: 3 days,
-                requirePolicyGuardianForRecovery: true
+                requirePolicyGuardianForRecovery: true,
+                predictedTimelockedRecoveryModuleInstanceAddress: address(0)
             });
         }
 
         // Predict WaymontSafeTimelockedRecoveryModule address
-        address predictedTimelockedRecoveryModuleInstanceAddress;
         {
             bytes32 salt = keccak256(abi.encode(safeInstance, moduleCreationParams.recoverySigners, moduleCreationParams.recoveryThreshold, moduleCreationParams.recoverySigningTimelock, moduleCreationParams.requirePolicyGuardianForRecovery, deploymentNonce));
-            predictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(waymontSafeFactory));
+            moduleCreationParams.predictedTimelockedRecoveryModuleInstanceAddress = Clones.predictDeterministicAddress(waymontSafeFactory.timelockedRecoveryModuleImplementation(), salt, address(waymontSafeFactory));
         }
 
         // Try and fail to deploy WaymontSafeTimelockedRecoveryModule before enabling
@@ -353,7 +354,7 @@ contract WaymontSafeExternalSignerTest is Test {
             underlyingThreshold,
             moduleCreationParams,
             predictedExternalSignerInstanceAddress,
-            predictedTimelockedRecoveryModuleInstanceAddress,
+            moduleCreationParams.predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
             true,
             requirePolicyGuardianForReusableCalls
@@ -385,7 +386,7 @@ contract WaymontSafeExternalSignerTest is Test {
             underlyingThreshold,
             moduleCreationParams,
             predictedExternalSignerInstanceAddress,
-            predictedTimelockedRecoveryModuleInstanceAddress,
+            moduleCreationParams.predictedTimelockedRecoveryModuleInstanceAddress,
             deploymentNonce,
             false,
             requirePolicyGuardianForReusableCalls
@@ -412,10 +413,10 @@ contract WaymontSafeExternalSignerTest is Test {
         }
 
         // Set WaymontSafeTimelockedRecoveryModule
-        timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(predictedTimelockedRecoveryModuleInstanceAddress);
+        timelockedRecoveryModuleInstance = WaymontSafeTimelockedRecoveryModule(moduleCreationParams.predictedTimelockedRecoveryModuleInstanceAddress);
 
         // Assert deployed correctly
-        assert(address(timelockedRecoveryModuleInstance) == predictedTimelockedRecoveryModuleInstanceAddress);
+        assert(address(timelockedRecoveryModuleInstance) == moduleCreationParams.predictedTimelockedRecoveryModuleInstanceAddress);
         assert(address(timelockedRecoveryModuleInstance.safe()) == address(safeInstance));
         for (uint256 i = 0; i < moduleCreationParams.recoverySigners.length; i++) assert(timelockedRecoveryModuleInstance.isOwner(moduleCreationParams.recoverySigners[i]));
         assert(timelockedRecoveryModuleInstance.getThreshold() == moduleCreationParams.recoveryThreshold);
@@ -529,7 +530,8 @@ contract WaymontSafeExternalSignerTest is Test {
                 recoverySigners: recoverySigners,
                 recoveryThreshold: 2,
                 recoverySigningTimelock: 3 days,
-                requirePolicyGuardianForRecovery: true
+                requirePolicyGuardianForRecovery: true,
+                predictedTimelockedRecoveryModuleInstanceAddress: address(0)
             });
         }
 
@@ -1516,7 +1518,8 @@ contract WaymontSafeExternalSignerTest is Test {
                 }
 
                 // Expect reverts and/or emits if testing certain things
-                if (options.testInvalidUserSignature) vm.expectRevert("GS026");
+                if (moreOptions.testRevertBecausePolicyGuardianMustBeEnabled) vm.expectRevert("Policy guardian must be enabled to submit reusable transactions.");
+                else if (options.testInvalidUserSignature) vm.expectRevert("GS026");
                 else if (options.testInvalidPolicyGuardianSignature) vm.expectRevert("Invalid policy guardian signature.");
                 else if (options.testShortPolicyGuardianSignature) vm.expectRevert("Invalid signature length.");
                 else if (options.expectRevert) vm.expectRevert("GS013");
@@ -1529,7 +1532,6 @@ contract WaymontSafeExternalSignerTest is Test {
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
                 else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && !moreOptions.testMultiUse && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
                 else if (moreOptions.testExecBlacklisted && moreOptions.testMultiUse) vm.expectRevert("Function call group unique ID has been blacklisted.");
-                else if (moreOptions.testRevertBecausePolicyGuardianMustBeEnabled) vm.expectRevert("Policy guardian must be enabled to submit reusable transactions.");
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1745,7 +1747,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse, false, testExecBlacklisted, testRevertBecausePolicyGuardianMustBeEnabled);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory options2 = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, testSigningMultipleChainIdsTogether, testMultiUse, false, false, testRevertBecausePolicyGuardianMustBeEnabled);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
         options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, options2);
@@ -1762,6 +1764,7 @@ contract WaymontSafeExternalSignerTest is Test {
         if (testExecBlacklisted) {
             bytes memory data2 = abi.encodeWithSelector(externalSignerInstance.blacklistFunctionCall.selector, testMultiUse ? groupUniqueIds[1] : uniqueIds[1]);
             _execTransaction(address(externalSignerInstance), 0, data2);
+            options2.testExecBlacklisted = true;
         }
 
         // Safe.execTransaction
@@ -1769,7 +1772,7 @@ contract WaymontSafeExternalSignerTest is Test {
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), options2);
 
         // Assert TX succeeded
-        if (!testExpired && !testExecBlacklisted) {
+        if (!testExpired && !testExecBlacklisted && !testRevertBecausePolicyGuardianMustBeEnabled) {
             assert(dummy == 22222222);
             assert(dummy2 == 33333333);
         }
@@ -1808,7 +1811,7 @@ contract WaymontSafeExternalSignerTest is Test {
         setUpWaymontSafe(false);
 
         // Remove policy guardian from Safe
-        _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance)));
+        _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance), address(policyGuardianSigner), 1));
 
         // Make sure it works
         _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, false, false, false);
@@ -1816,7 +1819,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
     function testCannotExecMultiUseTransactionWithoutPolicyGuardianIfEnforced() public {
         // Remove policy guardian from Safe
-        _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance)));
+        _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance), address(policyGuardianSigner), 1));
 
         // Make sure it fails
         _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(false, true, false, false, false, true);
