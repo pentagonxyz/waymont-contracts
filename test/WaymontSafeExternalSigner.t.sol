@@ -1816,7 +1816,13 @@ contract WaymontSafeExternalSignerTest is Test {
         }
 
         // Set gas tank
-        if (moreOptionsRaw.testGasTank) _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 9e6 : 12e6) * tx.gasprice));
+        uint256 initialVmGasPrice;
+
+        if (moreOptionsRaw.testGasTank) {
+            initialVmGasPrice = tx.gasprice;
+            vm.txGasPrice(2); // Set tx.gasprice to 2 for example purposes
+            _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 9e6 : 12e6) * tx.gasprice));
+        }
 
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
@@ -1853,6 +1859,9 @@ contract WaymontSafeExternalSignerTest is Test {
             assert(dummy == 22222222);
             assert(dummy2 == 33333333);
         }
+
+        // Reset tx.gasprice to what it was initially
+        if (moreOptionsRaw.testGasTank) vm.txGasPrice(initialVmGasPrice);
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
