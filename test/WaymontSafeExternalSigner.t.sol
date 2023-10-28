@@ -1535,6 +1535,8 @@ contract WaymontSafeExternalSignerTest is Test {
                 else if (moreOptions.testGasTank && moreOptions.testInsufficientGasTank) vm.expectRevert(stdError.arithmeticError);
 
                 // ExternalSigner.execTransaction
+                GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables memory vars2;
+                if (moreOptions.testGasTank) vars2 = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, address(0xC0FFEE)); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
                     vars.externalSignatures,
                     txs[i].uniqueId,
@@ -1542,7 +1544,19 @@ contract WaymontSafeExternalSignerTest is Test {
                     txs[i].deadline,
                     vars.merkleProofs[i]
                 );
-                externalSignerInstance.execTransaction(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
+                externalSignerInstance.execTransaction(
+                    txs[i].to,
+                    txs[i].value,
+                    txs[i].data,
+                    txs[i].operation,
+                    vars2.safeTxGas,
+                    vars2.baseGas,
+                    vars2.gasPrice,
+                    address(0),
+                    payable(vars2.refundReceiver),
+                    packedOverlyingSignatures,
+                    additionalParams
+                );
             }
 
             // Revert chain ID if necessary
@@ -1618,7 +1632,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         if (txs.length == 2) {
             // Generate data hash for the new transactions--decide common gas refund params based on testGasTank
-            if (testGasTank) vars = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, payable(address(0xC0FFEE))); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
+            if (testGasTank) vars = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, address(0xC0FFEE)); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
 
             // Generate data hash A
             ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(txs[0].uniqueId, txs[0].groupUniqueId, txs[0].deadline);
