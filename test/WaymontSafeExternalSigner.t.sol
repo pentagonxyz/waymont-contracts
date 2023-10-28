@@ -1469,35 +1469,19 @@ contract WaymontSafeExternalSignerTest is Test {
     }
 
     function _separatelyExecNonIncrementalTransactionsSignedTogether(
-        address[] memory to,
-        uint256[] memory value,
-        bytes[] memory data,
-        uint256[] memory uniqueIds,
-        uint256[] memory groupUniqueIds,
-        uint256[] memory deadlines,
+        ExternalSignerSafeTxBasicParams[] memory txs,
         TestExecTransactionOptions memory options,
         TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions
     ) internal {
-        // Input validation
-        assert(to.length > 0 && to.length == value.length && to.length == data.length);
-
         // Get external signatures param
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables memory vars;
-
-        // Scope out to avoid "stack too deep"
-        {
-            Enum.Operation[] memory operation = new Enum.Operation[](2);
-            operation[0] = Enum.Operation.Call;
-            operation[1] = Enum.Operation.Call;
-            (vars.externalSignatures, vars.merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether, moreOptions.testGasTank);
-        }
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables memory vars = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(txs, moreOptions.testSigningMultipleChainIdsTogether, moreOptions.testGasTank);
 
         // If testing multi-use, loop this code a second time:
         for (uint256 round = 0; round < (moreOptions.testMultiUse || moreOptions.testMultiUseOfSingleUse ? 2 : 1); round++) {
             // For each TX:
             uint256 initialChainId;
 
-            for (uint256 i = 0; i < to.length; i++) {
+            for (uint256 i = 0; i < txs.length; i++) {
                 // Change the chain ID if testing multiple chain IDs
                 if (moreOptions.testSigningMultipleChainIdsTogether && i == 1) {
                     initialChainId = block.chainid;
@@ -1508,7 +1492,7 @@ contract WaymontSafeExternalSignerTest is Test {
                 bytes memory packedOverlyingSignatures;
                 {
                     // Get signatures
-                    (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
+                    (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 1, options.useSecondaryPolicyGuardian);
                     if (options.testInvalidUserSignature) vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
@@ -1548,16 +1532,16 @@ contract WaymontSafeExternalSignerTest is Test {
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
                     vars.externalSignatures,
-                    uniqueIds[i],
-                    groupUniqueIds[i],
-                    deadlines[i],
+                    txs[i].uniqueId,
+                    txs[i].groupUniqueId,
+                    txs[i].deadline,
                     vars.merkleProofs[i]
                 );
-                externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
+                externalSignerInstance.execTransaction(txs[i].to, txs[i].value, txs[i].data, txs[i].operation, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
             }
 
             // Revert chain ID if necessary
-            if (moreOptions.testSigningMultipleChainIdsTogether && to.length > 1) vm.chainId(initialChainId);
+            if (moreOptions.testSigningMultipleChainIdsTogether && txs.length > 1) vm.chainId(initialChainId);
         }
     }
 
@@ -1597,33 +1581,43 @@ contract WaymontSafeExternalSignerTest is Test {
         return abi.encodePacked(bytes1(0x19), bytes1(0x01), externalSignerInstance.domainSeparator(), safeTxHash);
     }
 
+    struct ExternalSignerSafeTxBasicParams {
+        address to;
+        uint256 value;
+        bytes data;
+        Enum.Operation operation;
+        uint256 uniqueId;
+        uint256 groupUniqueId;
+        uint256 deadline;
+    }
+
+    struct GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables {
+        uint256 safeTxGas;
+        uint256 baseGas;
+        uint256 gasPrice;
+        address refundReceiver;
+    }
+
     function _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(
-        address[] memory to,
-        uint256[] memory value,
-        bytes[] memory data,
-        Enum.Operation[] memory operation,
-        uint256[] memory uniqueId,
-        uint256[] memory groupUniqueId,
-        uint256[] memory deadline,
+        ExternalSignerSafeTxBasicParams[] memory txs,
         bool testSigningMultipleChainIdsTogether,
         bool testGasTank
-    ) internal returns (bytes memory externalSignatures, bytes32[][] memory merkleProofs) {
-        // Input validation
-        assert(to.length > 0 && to.length == value.length && to.length == data.length && to.length == uniqueId.length && to.length == groupUniqueId.length && to.length == deadline.length);
-        assert(to.length <= 2); // Merkle proof code below only supports up to 2 TXs
+    ) internal returns (TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables memory ret) {
+        // Merkle proof code below only supports up to 2 TXs
+        assert(txs.length <= 2);
         
         // Generate merkle tree
         // NOTE: Merkle proof code below only supports up to 2 TXs
         bytes32 root;
+        GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables memory vars;
 
-        if (to.length == 2) {
+        if (txs.length == 2) {
             // Generate data hash for the new transactions--decide common gas refund params based on testGasTank
-            uint256 baseGas = testGasTank ? 10e6 : 0; // 10 million baseGas as an example
-            uint256 gasPrice = testGasTank ? type(uint256).max : 0;
-            address refundReceiver = payable(testGasTank ? address(0xC0FFEE) : address(0));
+            if (testGasTank) vars = GetExternalSignaturesForNonIncrementalTxsWithMerkleTreeVariables(500000, 2.5e6, type(uint256).max, payable(address(0xC0FFEE))); // 500k + 2.5m gas = 3m = 1/4th of 12m total in the sufficiently-funded gas tank used in these tests
 
             // Generate data hash A
-            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, gasPrice, address(0), refundReceiver, ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0])));
+            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(txs[0].uniqueId, txs[0].groupUniqueId, txs[0].deadline);
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(txs[0].to, txs[0].value, txs[0].data, txs[0].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
 
             // Store current chain ID and switch to other chain ID to generate TX B data hash
             uint256 initialChainId;
@@ -1634,7 +1628,8 @@ contract WaymontSafeExternalSignerTest is Test {
             }
 
             // Generate TX B data hash
-            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, gasPrice, address(0), refundReceiver, ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1])));
+            additionalParams = ExecNonIncrementalTransactionSigningParams(txs[1].uniqueId, txs[1].groupUniqueId, txs[1].deadline);
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(txs[1].to, txs[1].value, txs[1].data, txs[1].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
 
             // Back to initial chain ID
             if (testSigningMultipleChainIdsTogether) vm.chainId(initialChainId);
@@ -1643,14 +1638,15 @@ contract WaymontSafeExternalSignerTest is Test {
             root = keccak256(txHashA < txHashB ? abi.encode(txHashA, txHashB) : abi.encode(txHashB, txHashA));
 
             // Build merkle proofs
-            merkleProofs = new bytes32[][](2);
-            merkleProofs[0] = new bytes32[](1);
-            merkleProofs[0][0] = txHashB;
-            merkleProofs[1] = new bytes32[](1);
-            merkleProofs[1][0] = txHashA;
+            ret.merkleProofs = new bytes32[][](2);
+            ret.merkleProofs[0] = new bytes32[](1);
+            ret.merkleProofs[0][0] = txHashB;
+            ret.merkleProofs[1] = new bytes32[](1);
+            ret.merkleProofs[1][0] = txHashA;
         } else {
             // Only one level in merkle tree
-            root = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0])));
+            ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(txs[0].uniqueId, txs[0].groupUniqueId, txs[0].deadline);
+            root = keccak256(_encodeNonIncrementalTransactionData(txs[0].to, txs[0].value, txs[0].data, txs[0].operation, vars.safeTxGas, vars.baseGas, vars.gasPrice, address(0), vars.refundReceiver, additionalParams));
         }
 
         // Generate user signing device signature #1
@@ -1689,7 +1685,7 @@ contract WaymontSafeExternalSignerTest is Test {
         externalSigners[0] = ALICE;
         externalSigners[1] = BOB;
         externalSigners[2] = SAM_SCW;
-        externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
+        ret.externalSignatures = abi.encodePacked(_packSignaturesOrderedBySigner(topLevelExternalSignatures, externalSigners), samScwOverlyingSignatureData);
     }
 
     function _getOverlyingPolicyGuardianSignature(
@@ -1722,43 +1718,47 @@ contract WaymontSafeExternalSignerTest is Test {
         );
     }
 
-    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptionsRaw, bool skipPolicyGuardianAssertions) internal {
+    function _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptionsRaw,
+        bool skipPolicyGuardianAssertions
+    ) internal {
         // Send ETH to Safe
         vm.deal(address(safeInstance), (1337 + 1338) * (moreOptionsRaw.testMultiUse ? 2 : 1));
 
         // Transaction params
-        address[] memory to = new address[](2);
-        to[0] = address(this);
-        to[1] = address(this);
-        uint256[] memory value = new uint256[](2);
-        value[0] = 1337;
-        value[1] = 1338;
-        bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222);
-        data[1] = abi.encodeWithSelector(this.sampleWalletOnlyFunction2.selector, 33333333);
-
-        // Set unique IDs and/or group unique IDs
-        uint256[] memory uniqueIds = new uint256[](2);
-        uint256[] memory groupUniqueIds = new uint256[](2);
+        ExternalSignerSafeTxBasicParams[] memory txs = new ExternalSignerSafeTxBasicParams[](2);
+        txs[0] = ExternalSignerSafeTxBasicParams(
+            address(this),
+            1337,
+            abi.encodeWithSelector(this.sampleWalletOnlyFunction.selector, 22222222),
+            Enum.Operation.Call,
+            0,
+            0,
+            block.timestamp + 365 days
+        );
+        txs[1] = ExternalSignerSafeTxBasicParams(
+            address(this),
+            1338,
+            abi.encodeWithSelector(this.sampleWalletOnlyFunction2.selector, 33333333),
+            Enum.Operation.Call,
+            0,
+            0,
+            block.timestamp + 365 days
+        );
 
         // Use groupUniqueIds if multiUse or uniqueIds by default
         if (moreOptionsRaw.testMultiUse) {
             // Simulate random ID generation--IN PRACTICE THESE SHOULD ALWAYS BE RANDOM
             lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
-            groupUniqueIds[0] = lastUniqueId;
-            groupUniqueIds[1] = lastUniqueId;
+            txs[0].groupUniqueId = lastUniqueId;
+            txs[1].groupUniqueId = lastUniqueId;
         } else {
             // Simulate random ID generation--IN PRACTICE THESE SHOULD ALWAYS BE RANDOM
             lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
-            uniqueIds[0] = lastUniqueId;
+            txs[0].uniqueId = lastUniqueId;
             lastUniqueId = uint256(keccak256(abi.encode(lastUniqueId)));
-            uniqueIds[1] = lastUniqueId;
+            txs[1].uniqueId = lastUniqueId;
         }
-
-        // Set deadlines
-        uint256[] memory deadlines = new uint256[](2);
-        deadlines[0] = block.timestamp + 365 days;
-        deadlines[1] = block.timestamp + 365 days;
 
         // Set gas tank
         if (moreOptionsRaw.testGasTank) _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 6e6 : 12e6) * tx.gasprice));
@@ -1766,13 +1766,13 @@ contract WaymontSafeExternalSignerTest is Test {
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
         TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(moreOptionsRaw.testSigningMultipleChainIdsTogether, moreOptionsRaw.testMultiUse, false, false, false, moreOptionsRaw.testRevertBecausePolicyGuardianMustBeEnabled, moreOptionsRaw.testGasTank, false);
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, moreOptions);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(txs, options, moreOptions);
 
         if (!skipPolicyGuardianAssertions) {
             options = TestExecTransactionOptions(false, false, false, true, false, false, false, 0);
-            _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, moreOptions);
+            _separatelyExecNonIncrementalTransactionsSignedTogether(txs, options, moreOptions);
             options = TestExecTransactionOptions(false, false, false, false, true, false, false, 0);
-            _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, moreOptions);
+            _separatelyExecNonIncrementalTransactionsSignedTogether(txs, options, moreOptions);
         }
 
         // Expect revert when expired if specified in test options
@@ -1783,7 +1783,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // If option is set, test blacklisting
         if (moreOptionsRaw.testExecBlacklisted) {
-            bytes memory data2 = abi.encodeWithSelector(externalSignerInstance.blacklistFunctionCall.selector, moreOptionsRaw.testMultiUse ? groupUniqueIds[1] : uniqueIds[1]);
+            bytes memory data2 = abi.encodeWithSelector(externalSignerInstance.blacklistFunctionCall.selector, moreOptionsRaw.testMultiUse ? txs[1].groupUniqueId : txs[1].uniqueId);
             _execTransaction(address(externalSignerInstance), 0, data2);
             moreOptions.testExecBlacklisted = true;
         }
@@ -1791,7 +1791,7 @@ contract WaymontSafeExternalSignerTest is Test {
         // Safe.execTransaction
         moreOptions.testMultiUseOfSingleUse = moreOptionsRaw.testMultiUseOfSingleUse;
         moreOptions.testInsufficientGasTank = moreOptionsRaw.testInsufficientGasTank;
-        _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), moreOptions);
+        _separatelyExecNonIncrementalTransactionsSignedTogether(txs, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), moreOptions);
 
         // Assert TX succeeded
         if (!moreOptionsRaw.testExpiredTx && !moreOptionsRaw.testExecBlacklisted && !moreOptionsRaw.testRevertBecausePolicyGuardianMustBeEnabled) {
