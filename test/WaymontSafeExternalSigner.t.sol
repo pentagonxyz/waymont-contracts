@@ -294,7 +294,7 @@ contract WaymontSafeExternalSignerTest is Test {
                     0,
                     address(0)
                 );
-                uint256 saltNonce = 0x8888888888888888888888888888888888888888888888888888888888888888;
+                uint256 saltNonce = requirePolicyGuardianForReusableCalls ? 0x9999999999999999999999999999999999999999999999999999999999999999 : 0x8888888888888888888888888888888888888888888888888888888888888888;  // Use a different nonce if requirePolicyGuardianForReusableCalls is false so we can deploy multiple Safes (one with requirePolicyGuardianForReusableCalls set to true and one with requirePolicyGuardianForReusableCalls set to false)
                 safeInstance = Safe(payable(address(safeProxyFactory.createProxyWithNonce(safeImplementation, initializer, saltNonce))));
             }
 
@@ -400,7 +400,7 @@ contract WaymontSafeExternalSignerTest is Test {
         for (uint256 i = 0; i < underlyingOwners.length; i++) assert(externalSignerInstance.isOwner(underlyingOwners[i]));
         assert(address(externalSignerInstance.safe()) == address(safeInstance));
         assert(externalSignerInstance.getThreshold() == underlyingThreshold);
-        assert(address(externalSignerInstance.policyGuardianSigner()) == address(policyGuardianSigner));
+        assert(address(externalSignerInstance.policyGuardianSigner()) == (requirePolicyGuardianForReusableCalls ? address(policyGuardianSigner) : address(0)));
 
         // Assert signers configured correctly now
         {
