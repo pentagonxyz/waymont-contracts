@@ -1456,20 +1456,24 @@ contract WaymontSafeExternalSignerTest is Test {
         bool testMultiUse;
     }
 
+    struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables {
+        bytes externalSignatures;
+        bytes32[][] merkleProofs;
+    }
+
     function _separatelyExecNonIncrementalTransactionsSignedTogether(address[] memory to, uint256[] memory value, bytes[] memory data, uint256[] memory uniqueIds, uint256[] memory groupUniqueIds, uint256[] memory deadlines, TestExecTransactionOptions memory options, TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions) internal {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length);
 
         // Get external signatures param
-        bytes memory externalSignatures;
-        bytes32[][] memory merkleProofs;
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables memory vars;
 
         // Scope out to avoid "stack too deep"
         {
             Enum.Operation[] memory operation = new Enum.Operation[](2);
             operation[0] = Enum.Operation.Call;
             operation[1] = Enum.Operation.Call;
-            (externalSignatures, merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether);
+            (vars.externalSignatures, vars.merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether);
         }
 
         // If testing multi-use, loop this code a second time:
@@ -1489,7 +1493,7 @@ contract WaymontSafeExternalSignerTest is Test {
                 {
                     // Get signatures
                     (bytes memory policyGuardianOverlyingSignaturePointer, bytes memory policyGuardianOverlyingSignatureData) = _getOverlyingPolicyGuardianSignature(to[i], value[i], data[i], Enum.Operation.Call, 1, options.useSecondaryPolicyGuardian);
-                    if (options.testInvalidUserSignature) externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
+                    if (options.testInvalidUserSignature) vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] = vars.externalSignatures[SAM_SCW > ALICE || SAM_SCW > BOB ? 50 : 100] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testInvalidPolicyGuardianSignature) policyGuardianOverlyingSignatureData[50] = policyGuardianOverlyingSignatureData[50] == bytes1(0x55) ? bytes1(0x66) : bytes1(0x55);
                     else if (options.testShortPolicyGuardianSignature) policyGuardianOverlyingSignatureData = abi.encodePacked(uint256(64), hex'12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678');
 
@@ -1523,11 +1527,11 @@ contract WaymontSafeExternalSignerTest is Test {
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
-                    externalSignatures,
+                    vars.externalSignatures,
                     uniqueIds[i],
                     groupUniqueIds[i],
                     deadlines[i],
-                    merkleProofs[i]
+                    vars.merkleProofs[i]
                 );
                 externalSignerInstance.execTransaction(to[i], value[i], data[i], Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), packedOverlyingSignatures, additionalParams);
             }
