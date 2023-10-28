@@ -1459,6 +1459,8 @@ contract WaymontSafeExternalSignerTest is Test {
         bool testExecBlacklisted;
         bool testExpiredTx;
         bool testRevertBecausePolicyGuardianMustBeEnabled;
+        bool testGasTank;
+        bool testInsufficientGasTank;
     }
 
     struct TestSeparatelyExecNonIncrementalTransactionsSignedTogetherVariables {
@@ -1478,7 +1480,7 @@ contract WaymontSafeExternalSignerTest is Test {
             Enum.Operation[] memory operation = new Enum.Operation[](2);
             operation[0] = Enum.Operation.Call;
             operation[1] = Enum.Operation.Call;
-            (vars.externalSignatures, vars.merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether);
+            (vars.externalSignatures, vars.merkleProofs) = _getExternalSignaturesForNonIncrementalTxsWithMerkleTree(to, value, data, operation, uniqueIds, groupUniqueIds, deadlines, moreOptions.testSigningMultipleChainIdsTogether, moreOptions.testGasTank);
         }
 
         // If testing multi-use, loop this code a second time:
@@ -1532,6 +1534,7 @@ contract WaymontSafeExternalSignerTest is Test {
                 } else if (moreOptions.testExpiredTx) vm.expectRevert("This TX is expired/past its deadline.");
                 else if ((moreOptions.testMultiUseOfSingleUse && round > 0) || (moreOptions.testExecBlacklisted && !moreOptions.testMultiUse && i == 1)) vm.expectRevert("Function call unique ID has already been used or has been blacklisted.");
                 else if (moreOptions.testExecBlacklisted && moreOptions.testMultiUse) vm.expectRevert("Function call group unique ID has been blacklisted.");
+                else if (moreOptions.testGasTank && moreOptions.testInsufficientGasTank) vm.expectRevert(stdError.arithmeticError);
 
                 // ExternalSigner.execTransaction
                 WaymontSafeExternalSigner.AdditionalExecTransactionParams memory additionalParams = WaymontSafeExternalSigner.AdditionalExecTransactionParams(
@@ -1593,7 +1596,8 @@ contract WaymontSafeExternalSignerTest is Test {
         uint256[] memory uniqueId,
         uint256[] memory groupUniqueId,
         uint256[] memory deadline,
-        bool testSigningMultipleChainIdsTogether
+        bool testSigningMultipleChainIdsTogether,
+        bool testGasTank
     ) internal returns (bytes memory externalSignatures, bytes32[][] memory merkleProofs) {
         // Input validation
         assert(to.length > 0 && to.length == value.length && to.length == data.length && to.length == uniqueId.length && to.length == groupUniqueId.length && to.length == deadline.length);
@@ -1604,16 +1608,28 @@ contract WaymontSafeExternalSignerTest is Test {
         bytes32 root;
 
         if (to.length == 2) {
-            // Generate data hash for the new transactions
+            // Generate data hash for the new transactions--decide common gas refund params based on testGasTank
+            uint256 baseGas = testGasTank ? 10e6 : 0; // 10 million baseGas as an example
+            uint256 gasPrice = testGasTank ? type(uint256).max : 0;
+            address refundReceiver = payable(testGasTank ? address(0xC0FFEE) : address(0));
+
+            // Generate data hash A
             ExecNonIncrementalTransactionSigningParams memory additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[0], groupUniqueId[0], deadline[0]);
-            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, 0, address(0), payable(address(0)), additionalParams));
-            additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1]);
+            bytes32 txHashA = keccak256(_encodeNonIncrementalTransactionData(to[0], value[0], data[0], operation[0], 0, 0, gasPrice, address(0), refundReceiver, additionalParams));
+
+            // Store current chain ID and switch to other chain ID to generate TX B data hash
             uint256 initialChainId;
+
             if (testSigningMultipleChainIdsTogether) {
                 initialChainId = block.chainid;
                 vm.chainId(1234);
             }
-            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, 0, address(0), payable(address(0)), additionalParams));
+
+            // Generate TX B data hash
+            additionalParams = ExecNonIncrementalTransactionSigningParams(uniqueId[1], groupUniqueId[1], deadline[1]);
+            bytes32 txHashB = keccak256(_encodeNonIncrementalTransactionData(to[1], value[1], data[1], operation[1], 0, 0, gasPrice, address(0), refundReceiver, additionalParams));
+
+            // Back to initial chain ID
             if (testSigningMultipleChainIdsTogether) vm.chainId(initialChainId);
 
             // Get merkle root
@@ -1738,9 +1754,12 @@ contract WaymontSafeExternalSignerTest is Test {
         deadlines[0] = block.timestamp + 365 days;
         deadlines[1] = block.timestamp + 365 days;
 
+        // Set gas tank
+        if (moreOptionsRaw.testGasTank) _execTransaction(address(externalSignerInstance), 0, abi.encodeWithSelector(externalSignerInstance.setGasTank.selector, (moreOptionsRaw.testInsufficientGasTank ? 6e6 : 12e6) * tx.gasprice));
+
         // Safe.execTransaction expecting revert
         TestExecTransactionOptions memory options = TestExecTransactionOptions(false, false, true, false, false, false, false, 0);
-        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(moreOptionsRaw.testSigningMultipleChainIdsTogether, moreOptionsRaw.testMultiUse, false, false, false, moreOptionsRaw.testRevertBecausePolicyGuardianMustBeEnabled);
+        TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions memory moreOptions = TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(moreOptionsRaw.testSigningMultipleChainIdsTogether, moreOptionsRaw.testMultiUse, false, false, false, moreOptionsRaw.testRevertBecausePolicyGuardianMustBeEnabled, moreOptionsRaw.testGasTank, false);
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, options, moreOptions);
 
         if (!skipPolicyGuardianAssertions) {
@@ -1765,6 +1784,7 @@ contract WaymontSafeExternalSignerTest is Test {
 
         // Safe.execTransaction
         moreOptions.testMultiUseOfSingleUse = moreOptionsRaw.testMultiUseOfSingleUse;
+        moreOptions.testInsufficientGasTank = moreOptionsRaw.testInsufficientGasTank;
         _separatelyExecNonIncrementalTransactionsSignedTogether(to, value, data, uniqueIds, groupUniqueIds, deadlines, TestExecTransactionOptions(false, false, false, false, false, false, false, 0), moreOptions);
 
         // Assert TX succeeded
@@ -1775,31 +1795,39 @@ contract WaymontSafeExternalSignerTest is Test {
     }
 
     function testSeparatelyExecNonIncrementalTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, false, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, false, false, false, false, false), false);
     }
 
     function testExecTransactionsWithDifferentChainIdsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(true, false, false, false, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(true, false, false, false, false, false, false, false), false);
     }
 
     function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogether() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), false);
+    }
+
+    function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogetherUsingGasTank() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, true, false), false);
+    }
+
+    function testRepeatedlySeparatelyExecMultiUseTransactionsSignedTogetherUsingInsufficientGasTank() public {
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, true, true), false);
     }
 
     function testCannotRepeatedlyExecSingleUseNonIncrementalTransactions() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, true, false, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, true, false, false, false, false, false), false);
     }
 
     function testCannotExecBlacklistedNonIncrementalTransaction() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, true, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, true, false, false, false, false), false);
     }
 
     function testCannotExecBlacklistedMultiUseTransaction() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, true, false, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, true, false, false, false, false), false);
     }
 
     function testCannotExecExpiredNonIncrementalTransactions() public {
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, false, true, false), false);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, false, false, false, true, false, false, false), false);
     }
 
     function testExecMultiUseTransactionWithoutPolicyGuardianIfNotEnforced() public {
@@ -1810,7 +1838,7 @@ contract WaymontSafeExternalSignerTest is Test {
         _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance), address(policyGuardianSigner), 1));
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testCannotExecMultiUseTransactionWithoutPolicyGuardianIfEnforced() public {
@@ -1818,7 +1846,7 @@ contract WaymontSafeExternalSignerTest is Test {
         _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.removeOwner.selector, address(externalSignerInstance), address(policyGuardianSigner), 1));
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 
     function testExecMultiUseTransactionWithDisabledPolicyGuardianIfNotEnforced() public {
@@ -1829,7 +1857,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardian();
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testCannotExecMultiUseTransactionWithDisabledPolicyGuardianIfEnforced() public {
@@ -1837,7 +1865,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardian();
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 
     function testExecMultiUseTransactionAfterPolicyGuardianDisabledWithoutPolicyGuardianIfPolicyGuardianNotEnforced() public {
@@ -1848,7 +1876,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianWithoutPolicyGuardian();
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testExecMultiUseTransactionAfterPolicyGuardianDisabledWithoutPolicyGuardianIfPolicyGuardianEnforced() public {
@@ -1856,7 +1884,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianWithoutPolicyGuardian();
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 
     function testExecMultiUseTransactionWithGloballyDisabledPolicyGuardianIfNotEnforced() public {
@@ -1867,7 +1895,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianGlobally();
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testCannotExecMultiUseTransactionWithGloballyDisabledPolicyGuardianIfEnforced() public {
@@ -1875,7 +1903,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianGlobally();
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 
     function testExecMultiUseTransactionWithPermanentlyDisabledPolicyGuardianIfNotEnforced() public {
@@ -1886,7 +1914,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianPermanently();
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testCannotExecMultiUseTransactionWithPermanentlyDisabledPolicyGuardianIfEnforced() public {
@@ -1894,7 +1922,7 @@ contract WaymontSafeExternalSignerTest is Test {
         testDisablePolicyGuardianPermanently();
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 
     function testExecMultiUseTransactionWithLowThresholdIfPolicyGuardianNotEnforced() public {
@@ -1905,7 +1933,7 @@ contract WaymontSafeExternalSignerTest is Test {
         _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.changeThreshold.selector, safeInstance.getThreshold() - 1));
 
         // Make sure it works
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, false, false, false), true);
     }
 
     function testCannotExecMultiUseTransactionWithLowThresholdIfPolicyGuardianEnforced() public {
@@ -1913,6 +1941,6 @@ contract WaymontSafeExternalSignerTest is Test {
         _execTransaction(address(safeInstance), 0, abi.encodeWithSelector(safeInstance.changeThreshold.selector, safeInstance.getThreshold() - 1));
 
         // Make sure it fails
-        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true), true);
+        _demoSeparatelyExecNonIncrementalTransactionsSignedTogether(TestSeparatelyExecNonIncrementalTransactionsSignedTogetherOptions(false, true, false, false, false, true, false, false), true);
     }
 }
