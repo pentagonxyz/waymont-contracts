@@ -60,7 +60,7 @@ As of 5/21/2023, the contracts have been updated to work as follows:
 
 1. In the default user wallet deployment scenario: instead of being a 1-of-1 `Safe` with an underlying custom signer managing all signers, wallets will be 2-of-2 between `Safe`s with the user's actual primary Waymont mobile app signing device key and a custom signer contract (`WaymontSafePolicyGuardianSigner`) overlaying/representing the policy guardian (so the policy guardian key can be switched out by the policy guardian manager and so the policy guardian can be disabled after a timelock).
     - WARNING: Do not use this configuration with an x-of-n wallet where x is less than n--users should use the `WaymontSafeAdvancedSigner` for this as described below.
-    - NOTE: Waymont's production API currently does NOT use this pattern: instead, Waymont's production API ALWAYS uses the `WaymontSafeAdvancedSigner`, even if the user has only one signing device on their Safe.
+    - NOTE: As of 11/20/2023, Waymont's production API currently does NOT use this pattern: instead, Waymont's production API ALWAYS uses the `WaymontSafeAdvancedSigner`, even if the user has only one signing device on their Safe.
     - *Down the line with this contract setup, the Waymont app could eventually allow users to require multiple of their Waymont mobile app signing devices by making the `Safe` a 3-of-3, 4-of-4, etc. (But for now, this will not be a supported feature in the app.)*
         - *Even further down the line, Waymont could even allow these signers to be removed after a timelock with something like `WaymontSafeOverridableSigner`. (This will of course not be built or audited now.)*
 
