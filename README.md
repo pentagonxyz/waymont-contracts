@@ -1,17 +1,17 @@
 # Waymont: EVM Smart Contracts (built for Safe)
 
-Waymont's EVM smart contracts are built on top of the existing [Safe contracts](https://github.com/safe-global/safe-contracts). Waymont's smart contracts enable specialized functionality, mainly security features, such as using Waymont's off-chain transaction policy guardians removable after a timelock (achieved using a custom signing contract as one of the signers on the `Safe`) as well as Waymont's social recovery system (achieved using a module attached to the `Safe`). Waymont's contracts also support signing and sending transactions with non-incremental nonces (i.e., transactions that can be sent in any order after signing) with deadlines as well the ability to sign multiple non-incremental transactions at once (including signing transactions on multiple chains at once).
+Waymont's EVM smart contracts are built on top of the existing [Safe contracts](https://github.com/safe-global/safe-contracts). Waymont's smart contracts enable specialized functionality, mainly security features, such as using Waymont's off-chain transaction policy guardians removable after a timelock (achieved using a custom signing contract as one of the signers on the `Safe`) as well as Waymont's social recovery system (achieved using a module attached to the `Safe`). Waymont's contracts also support (via another custom Safe signer contract) signing and sending transactions with non-incremental nonces (i.e., transactions that can be sent in any order after signing) with deadlines as well the ability to sign multiple non-incremental transactions at once (including signing transactions on multiple chains at once).
 
 ## Structure
 
-The following contracts should be used with Safe contracts [v1.4.1](https://github.com/safe-global/safe-contracts/tree/v1.4.1). (Despite the fact that this repo uses Safe contracts `v1.4.0` as a dependency, Waymont's contracts should be used with `v1.4.1` Safes because `v1.4.1` includes a bug fix in the `Safe` contract.)
+The following contracts should be used with Safe contracts [v1.4.1](https://github.com/safe-global/safe-contracts/tree/v1.4.1). (Despite the fact that this repo uses Safe contracts `v1.4.0` as a dependency, Waymont's contracts should be used with `v1.4.1` Safes because `v1.4.0` includes a bug fix in the `Safe` contract.)
 
-- `WaymontSafePolicyGuardianSigner`: Smart contract signer (via ERC-1271) for Safes wrapping an EOA and supporting changing the EOA or bypassing this signer (for all Safes) from a global manager address as well as bypassing this signer after a timelock on a specific Safe.
-- `WaymontSafeFactory`: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
-- `WaymontSafeAdvancedSigner`: Smart contract signer (via ERC-1271) to support a subgroup of signers (with their own threshold) attached as a signer on a Safe.
-- `WaymontSafeTimelockedRecoveryModule`: Safe module supporting timelocked recovery by an alternate group of signers.
-- `WaymontSafeExternalSignerFactory`: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
-- `WaymontSafeExternalSigner`: Smart contract signer (via ERC-1271) for Safes allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
+- **`WaymontSafePolicyGuardianSigner`**: Smart contract signer (via ERC-1271) for Safes wrapping an EOA and supporting changing the EOA or bypassing this signer (for all Safes) from a global manager address as well as bypassing this signer after a timelock on a specific Safe.
+- **`WaymontSafeFactory`**: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
+- **`WaymontSafeAdvancedSigner`**: Smart contract signer (via ERC-1271) to support a subgroup of signers (with their own threshold) attached as a signer on a Safe.
+- **`WaymontSafeTimelockedRecoveryModule`**: Safe module supporting timelocked recovery by an alternate group of signers.
+- **`WaymontSafeExternalSignerFactory`**: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
+- **`WaymontSafeExternalSigner`**`: Smart contract signer (via ERC-1271) for Safes allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
 
 ## Installation
 
