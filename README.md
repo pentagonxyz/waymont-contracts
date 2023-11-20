@@ -41,7 +41,7 @@ In early May 2023, Waymont redesigned its smart contracts to be based on top of 
 
 ### V1.0.0: Late May 2023 Redesign
 
-In late May 2023, Waymont redesigned its smart contracts again to be more modular in an effort to maximize security and simplicity.
+In late May 2023, Waymont redesigned its smart contracts again (still on top of Safe) to be more modular in an effort to maximize security and simplicity.
 
 #### Goals
 
