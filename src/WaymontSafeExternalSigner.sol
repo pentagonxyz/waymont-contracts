@@ -11,7 +11,8 @@ import "lib/openzeppelin-contracts/contracts/utils/cryptography/MerkleProof.sol"
 import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeExternalSigner
-/// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts) allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
+/// @notice Smart contract signer (via ERC-1271) for Safes allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
+/// Built for Safe contracts v1.4.1 (https://github.com/safe-global/safe-contracts/tree/v1.4.1).
 contract WaymontSafeExternalSigner is EIP712DomainSeparator, CheckSignaturesEIP1271 {
     // @dev Equivalent of `Safe.SAFE_TX_TYPEHASH` but for transactions verified by this contract specifically.
     // Computed as: `keccak256("WaymontSafeExternalSignerTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 uniqueId,uint256 groupUniqueId,uint256 deadline)");`

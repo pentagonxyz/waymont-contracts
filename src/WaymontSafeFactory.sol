@@ -11,6 +11,7 @@ import "./WaymontSafeTimelockedRecoveryModule.sol";
 
 /// @title WaymontSafeFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
+/// @dev Using the Safe Singleton Factory is recommended method of deployment of this factory: https://github.com/safe-global/safe-singleton-factory
 contract WaymontSafeFactory {
     /// @notice `WaymontSafePolicyGuardianSigner` contract.
     WaymontSafePolicyGuardianSigner public immutable policyGuardianSigner;
