@@ -1,8 +1,49 @@
-# Waymont: May 2023 Smart Contract Redesign
+# Waymont: EVM Smart Contracts (built for Safe)
 
-Waymont has chosen to redesign its smart contracts to be built on top of the existing [Safe contracts](https://github.com/safe-global/safe-contracts). Waymont's smart contracts will enable specialized functionality, mainly security features, such as using Waymont's off-chain transaction policy guardians removable after a timelock (achieved using a custom signing contract as one of the signers on the `Safe`) as well as Waymont's social recovery system (achieved using a module attached to the `Safe`).
+Waymont's EVM smart contracts are built on top of the existing [Safe contracts](https://github.com/safe-global/safe-contracts). Waymont's smart contracts enable specialized functionality, mainly security features, such as using Waymont's off-chain transaction policy guardians removable after a timelock (achieved using a custom signing contract as one of the signers on the `Safe`) as well as Waymont's social recovery system (achieved using a module attached to the `Safe`). Waymont's contracts also support signing and sending transactions with non-incremental nonces (i.e., transactions that can be sent in any order after signing) with deadlines as well the ability to sign multiple non-incremental transactions at once (including signing transactions on multiple chains at once).
 
-## Goals
+## Structure
+
+The following contracts should be used with Safe contracts [v1.4.1](https://github.com/safe-global/safe-contracts/tree/v1.4.1). (Despite the fact that this repo uses Safe contracts `v1.4.0` as a dependency, Waymont's contracts should be used with `v1.4.1` Safes because `v1.4.1` includes a bug fix in the `Safe` contract.)
+
+- `WaymontSafePolicyGuardianSigner`: Smart contract signer (via ERC-1271) for Safes wrapping an EOA and supporting changing the EOA or bypassing this signer (for all Safes) from a global manager address as well as bypassing this signer after a timelock on a specific Safe.
+- `WaymontSafeFactory`: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeAdvancedSigner` and `WaymontSafeTimelockedRecoveryModule`.
+- `WaymontSafeAdvancedSigner`: Smart contract signer (via ERC-1271) to support a subgroup of signers (with their own threshold) attached as a signer on a Safe.
+- `WaymontSafeTimelockedRecoveryModule`: Safe module supporting timelocked recovery by an alternate group of signers.
+- `WaymontSafeExternalSignerFactory`: Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
+- `WaymontSafeExternalSigner`: Smart contract signer (via ERC-1271) for Safes allowing execution of transactions signed together through merkle trees and/or without incremental nonces.
+
+## Installation
+
+Simply [install Foundry](https://book.getfoundry.sh/getting-started/installation) to get started.
+
+## Compiling
+
+`npm run build` or `forge build`
+
+## Testing
+
+`npm t` or `forge test`
+
+## Coverage
+
+`npm run coverage` or `forge coverage --ir-minimum`
+
+Note that there seems to be a bug in `forge coverage --ir-minimum` resulting in false readings--specifically, the test coverage should show 100%, but the coverage for `WaymontSafePolicyGuardianSigner.sol` is slightly understated. [This issue has been reported on Foundry's GitHub here.](https://github.com/foundry-rs/foundry/issues/6156)
+
+## History
+
+Waymont's contracts started as fully custom-made; eventually, in early May 2023, Waymont redesigned its contracts to use Safe as a base, then, in late May 2023, redesigned the contracts again to be more modular. In September and October 2023, Waymont created the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing.
+
+### Early May 2023 Redesign
+
+In early May 2023, Waymont redesigned its smart contracts to be based on top of the existing [Safe contracts](https://github.com/safe-global/safe-contracts). Previously, Waymont's contracts included entirely custom-made smart contract wallet code. However, Waymont switched to using Safe as a base in an effort to increase security, simplicity, interoperability, composability, and functionality.
+
+### V1.0.0: Late May 2023 Redesign
+
+In late May 2023, Waymont redesigned its smart contracts again to be more modular in an effort to maximize security and simplicity.
+
+#### Goals
 
 Goals achieved by the new structure:
 
@@ -13,7 +54,7 @@ Goals achieved by the new structure:
     - Decrease smart contract attack surface significantly.
     - Ensure the structure is more clear and easier to understand for users.
 
-## Overview
+#### Overview
 
 As of 5/21/2023, the contracts have been updated to work as follows:
 
@@ -35,3 +76,7 @@ As of 5/21/2023, the contracts have been updated to work as follows:
     - *Down the line, Waymont could support unequal recovery signer voting power (i.e., signers could have multiple votes) and/or unequal recovery signing timelocks (i.e., some signers could queue their signature more quickly than others) by creating a modified version of the `WaymontTimelockedBackupSignerSafeModule` that uses a modified `IsolatedOwnerManager`. For now, due to lack of necessity, Waymont will not building or auditing this.*
 
 4. The nonceless/scheduled transaction plugin will now be a part of Sling as the other plugins are likely more useful. (Waymont won't be building or auditing this initially.)
+
+### V2.0.0: September/October 2023 Additions
+
+In September and October 2023, Waymont added the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing. This contract supports signing and sending transactions with non-incremental nonces (i.e., transactions that can be sent in any order after signing) with deadlines as well the ability to sign multiple non-incremental transactions at once (including signing transactions on multiple chains at once).
