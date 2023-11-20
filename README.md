@@ -33,7 +33,10 @@ Note that there seems to be a bug in `forge coverage --ir-minimum` resulting in 
 
 ## History
 
-Waymont's contracts started as fully custom-made; eventually, in early May 2023, Waymont redesigned its contracts to use Safe as a base, then, in late May 2023, redesigned the contracts again to be more modular. In September and October 2023, Waymont created the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing.
+1. Waymont's contracts originally started as fully custom-made.
+2. Eventually, in early May 2023, Waymont redesigned its contracts to use Safe as a base.
+3. Then, in late May 2023, redesigned the contracts again to be more modular (still using Safe as a base).
+4. In September and October 2023, Waymont created the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing.
 
 ### Early May 2023 Redesign
 
