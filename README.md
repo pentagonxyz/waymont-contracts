@@ -33,10 +33,13 @@ Note that there seems to be a bug in `forge coverage --ir-minimum` resulting in 
 
 ## History
 
-1. Waymont's contracts originally started as fully custom-made.
-2. Eventually, in early May 2023, Waymont redesigned its contracts to use Safe as a base.
-3. Then, in late May 2023, redesigned the contracts again to be more modular (still using Safe as a base).
-4. In September and October 2023, Waymont created the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing.
+An overview of Waymont's smart contracts' history is as follows:
+
+1. Waymont made the choice to use smart contracts over MPC for its wallet software around early December 2022.
+2. Waymont's contracts originally started as fully custom-made. Development continued until April 2023.
+3. Eventually, in early May 2023, Waymont redesigned its contracts to use Safe as a base.
+4. Then, in late May 2023, redesigned the contracts again to be more modular (still using Safe as a base).
+5. In September and October 2023, Waymont created the `WaymontSafeExternalSigner` and its factory to support non-incremental transactions and multi-TX signing.
 
 ### Early May 2023 Redesign
 
