@@ -29,7 +29,7 @@ Simply [install Foundry](https://book.getfoundry.sh/getting-started/installation
 
 `npm run coverage` or `forge coverage --ir-minimum`
 
-Note that there seems to be a bug in `forge coverage --ir-minimum` resulting in false readings--specifically, the test coverage should show 100%, but the coverage for `WaymontSafePolicyGuardianSigner.sol` is slightly understated. [This issue has been reported on Foundry's GitHub here.](https://github.com/foundry-rs/foundry/issues/6156)
+*Note that there seems to be a bug in `forge coverage --ir-minimum` resulting in false readings--specifically, the test coverage should show 100%, but the coverage for `WaymontSafePolicyGuardianSigner.sol` is slightly understated. [This issue has been reported on Foundry's GitHub here.](https://github.com/foundry-rs/foundry/issues/6156)*
 
 ## History
 
