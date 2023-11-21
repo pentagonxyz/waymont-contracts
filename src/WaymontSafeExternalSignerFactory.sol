@@ -10,6 +10,7 @@ import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeExternalSignerFactory
 /// @notice Creates EIP-1167 minimal proxy contract clones of `WaymontSafeExternalSigner`.
+/// These contracts are meant to be used with Safe contracts v1.4.1 (https://github.com/safe-global/safe-contracts/tree/v1.4.1). It can also be used with v1.4.0.
 /// @dev Using the Safe Singleton Factory is recommended method of deployment of this factory: https://github.com/safe-global/safe-singleton-factory
 contract WaymontSafeExternalSignerFactory {
     /// @notice Address of the `WaymontSafePolicyGuardianSigner` contract.
