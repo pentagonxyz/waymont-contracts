@@ -10,7 +10,8 @@ import "./WaymontSafeFactory.sol";
 import "./WaymontSafePolicyGuardianSigner.sol";
 
 /// @title WaymontSafeTimelockedRecoveryModule
-/// @notice Module for Gnosis Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
+/// @notice Safe module supporting timelocked recovery by an alternate group of signers.
+/// This contract is meant to be used with Safe contracts v1.4.1 (https://github.com/safe-global/safe-contracts/tree/v1.4.1). It can also be used with v1.4.0.
 contract WaymontSafeTimelockedRecoveryModule is EIP712DomainSeparator, CheckSignatures {
     /// @dev Typehash for `queueTransaction`: `keccak256("QueueSignature(bytes signature)")`.
     bytes32 private constant QUEUE_SIGNATURE_TYPEHASH = 0x56f7b592467518044b02545f1b4518cd51c746d04978afb6a3b9d05895cb79cf;

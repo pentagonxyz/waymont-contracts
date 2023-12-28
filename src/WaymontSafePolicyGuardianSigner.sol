@@ -5,7 +5,8 @@ import "lib/safe-contracts/contracts/Safe.sol";
 import "lib/safe-contracts/contracts/EIP712DomainSeparator.sol";
 
 /// @title WaymontSafePolicyGuardianSigner
-/// @notice Smart contract signer (via ERC-1271) for Safe contracts v1.4.0 (https://github.com/safe-global/safe-contracts).
+/// @notice Smart contract signer (via ERC-1271) for Safes wrapping an EOA and supporting changing the EOA or bypassing this signer (for all Safes) from a global manager address as well as bypassing this signer after a timelock on a specific Safe.
+/// This contract is meant to be used with Safe contracts v1.4.1 (https://github.com/safe-global/safe-contracts/tree/v1.4.1). It can also be used with v1.4.0.
 contract WaymontSafePolicyGuardianSigner is EIP712DomainSeparator {
     /// @dev Typehash for `queueDisablePolicyGuardian`: `keccak256("QueueDisablePolicyGuardian(uint256 nonce)")`.
     bytes32 private constant QUEUE_DISABLE_POLICY_GUARDIAN_TYPEHASH = 0xd5fa5ce164fba34243c3b3b9c5346acc2eae6f31655b86516d465566d0ba53f7;
