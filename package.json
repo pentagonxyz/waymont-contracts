@@ -1,0 +1,23 @@
+{
+  "name": "waymont-contracts",
+  "version": "1.0.0",
+  "description": "Waymont smart contracts for Safes on EVM-based chains.",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "forge test",
+    "build": "forge build",
+    "coverage": "forge coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pentagonxyz/waymont-contracts.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/pentagonxyz/waymont-contracts/issues"
+  },
+  "homepage": "https://github.com/pentagonxyz/waymont-contracts#readme"
+}
